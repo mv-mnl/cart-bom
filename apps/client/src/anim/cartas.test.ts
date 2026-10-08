@@ -1,6 +1,6 @@
 import type { Sprite, Texture } from 'pixi.js';
 import { describe, expect, it } from 'vitest';
-import { moverCarta, olvidarCarta, vaHacia, voltearCarta } from './cartas';
+import { moverCarta, olvidarCarta, repartirCarta, vaHacia, voltearCarta } from './cartas';
 
 const cara = { nombre: 'cara' } as unknown as Texture;
 const dorso = { nombre: 'dorso' } as unknown as Texture;
@@ -64,5 +64,30 @@ describe('vaHacia', () => {
     expect(vaHacia(s, { ...destino, x: 10 })).toBe(false);
     olvidarCarta(s);
     expect(vaHacia(s, destino)).toBe(false);
+  });
+});
+
+describe('repartirCarta', () => {
+  it('tu carta sale boca abajo y, si se interrumpe, queda de cara', () => {
+    const s = spriteFalso();
+    repartirCarta(s, destino, cara, dorso);
+    expect(s.texture).toBe(dorso);
+    moverCarta(s, { ...destino, y: 250 });
+    expect(s.texture).toBe(cara);
+    olvidarCarta(s);
+  });
+
+  it('al terminar queda de cara y exactamente en su lugar', () => {
+    const s = spriteFalso();
+    repartirCarta(s, destino, cara, dorso).progress(1);
+    expect(s.texture).toBe(cara);
+    expect([s.x, s.y, s.rotation, s.scale.x, s.scale.y]).toEqual([300, 200, 0, 1, 1]);
+  });
+
+  it('la de un rival llega boca abajo', () => {
+    const s = spriteFalso();
+    repartirCarta(s, destino, null, dorso).progress(1);
+    expect(s.texture).toBe(dorso);
+    expect([s.x, s.y]).toEqual([300, 200]);
   });
 });

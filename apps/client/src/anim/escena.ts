@@ -1,7 +1,14 @@
 import type { Sprite, Texture } from 'pixi.js';
 import type { Anclas, Escena, Origen, Punto } from '../table/layout';
 import { DORSO } from '../table/texturas';
-import { colocarCarta, moverCarta, vaHacia, voltearCarta, type Pose } from './cartas';
+import {
+  colocarCarta,
+  moverCarta,
+  repartirCarta,
+  vaHacia,
+  voltearCarta,
+  type Pose,
+} from './cartas';
 
 /** Separación entre cartas del reparto (a velocidad normal). */
 const PASO_REPARTO = 0.035;
@@ -90,7 +97,11 @@ export function animarEscena(ctx: ContextoAnimacion): void {
       const velocidad = reparto ? VELOCIDAD_REPARTO : 1;
       const cara = ctx.textura(c.textura);
       const dorso = ctx.textura(DORSO);
-      if (c.origen.voltear && cara && dorso) {
+      if (reparto && dorso) {
+        // Las tuyas se descubren al llegar; las de los rivales llegan boca abajo.
+        const tuya = c.textura !== DORSO ? (cara ?? null) : null;
+        repartirCarta(sprite, destino, tuya, dorso, { retraso, zIndexFinal, velocidad });
+      } else if (c.origen.voltear && cara && dorso) {
         voltearCarta(sprite, destino, cara, dorso, { retraso, zIndexFinal, velocidad });
       } else {
         moverCarta(sprite, destino, { retraso, zIndexFinal, velocidad });
