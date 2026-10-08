@@ -456,3 +456,277 @@ button.segmento[aria-checked='true'] {
 .mini-americana small {
   font-size: 0.75rem;
 }
+
+/* Pantalla final: el fondo oscuro, el letrero y el confeti los dibuja Pixi; aquí va el panel. */
+.pantalla-final {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 1rem max(1.25rem, 6vh);
+  pointer-events: none;
+}
+
+.panel-final {
+  --naranja: #ffad1f;
+  --naranja-claro: #ffc95a;
+  --naranja-sombra: #b25e00;
+  pointer-events: auto;
+  width: min(26rem, 100%);
+  max-height: 68vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1.1rem 1.1rem;
+  background: linear-gradient(#154a31, #0b2e1e);
+  border: 3px solid #2f6b4c;
+  border-radius: 18px;
+  box-shadow:
+    inset 0 0 0 2px rgb(0 0 0 / 0.35),
+    0 10px 30px rgb(0 0 0 / 0.5);
+  /* Empieza invisible; GSAP lo hace entrar (con movimiento reducido, de inmediato). */
+  opacity: 0;
+}
+
+.panel-final.ganaste {
+  border-color: var(--dorado);
+  box-shadow:
+    inset 0 0 0 2px rgb(0 0 0 / 0.35),
+    0 0 28px rgb(255 213 74 / 0.35),
+    0 10px 30px rgb(0 0 0 / 0.5);
+}
+
+.detalle-final {
+  margin: 0;
+  text-align: center;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.tabla-final {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.fila-final {
+  display: grid;
+  grid-template-columns: minmax(5.5rem, auto) 1fr auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 10px;
+  background: rgb(0 0 0 / 0.22);
+  font-size: 0.9rem;
+}
+
+.fila-final.tu {
+  outline: 1px solid rgb(255 255 255 / 0.3);
+}
+
+.fila-final.gano {
+  background: rgb(255 213 74 / 0.16);
+}
+
+.nombre-final {
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.barra-final {
+  display: flex;
+  gap: 2px;
+}
+
+.barra-final span {
+  flex: 1;
+  height: 0.55rem;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 0.14);
+}
+
+.barra-final span.llena {
+  background: #81c784;
+}
+
+.fila-final.gano .barra-final span.llena {
+  background: var(--dorado);
+}
+
+.cuenta-final {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  opacity: 0.8;
+}
+
+.acciones-final {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.acciones-final button.boton-juego {
+  font-size: 1.05rem;
+  padding: 0.7rem 1rem;
+}
+
+.acciones-final .fila {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.acciones-final .fila button {
+  flex: 1;
+}
+
+/* Los controles siguen ocupando su lugar para que la mesa no cambie de tamaño;
+   se oscurecen igual que la mesa (el fondo de Pixi) y no se pueden tocar. */
+.controles {
+  position: relative;
+}
+
+.partida.con-final .controles > * {
+  visibility: hidden;
+}
+
+.partida.con-final .controles::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgb(3 20 12 / 0.62);
+  animation: oscurecer 0.35s ease-out;
+}
+
+@keyframes oscurecer {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .partida.con-final .controles::after {
+    animation: none;
+  }
+}
+
+/* Laboratorio de animaciones (solo en desarrollo). */
+button.boton-lab {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  z-index: 31;
+}
+
+.panel-lab {
+  position: absolute;
+  top: 3.2rem;
+  right: 0.6rem;
+  z-index: 30;
+  width: min(19.5rem, calc(100% - 1.2rem));
+  max-height: calc(100% - 4rem);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: rgb(6 30 20 / 0.94);
+  border: 2px solid #2f6b4c;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.45);
+  font-size: 0.85rem;
+  user-select: text;
+}
+
+.panel-lab header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.panel-lab .fps {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: #81c784;
+}
+
+.panel-lab .fps.lento {
+  color: var(--aviso);
+}
+
+.panel-lab button {
+  padding: 0.3rem 0.65rem;
+  font-size: 0.8rem;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.08);
+  color: var(--texto);
+  outline: 1px solid rgb(255 255 255 / 0.2);
+}
+
+.panel-lab button[aria-pressed='true'],
+.panel-lab button.principal {
+  background: var(--dorado);
+  color: #2b2100;
+  outline: none;
+}
+
+.fila-lab {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.fila-lab > span {
+  min-width: 4.2rem;
+  opacity: 0.75;
+}
+
+.panel-lab .semilla {
+  flex: 1;
+  min-width: 0;
+  padding: 0.3rem 0.5rem;
+  font: inherit;
+  color: var(--texto);
+  background: rgb(0 0 0 / 0.3);
+  border: 1px solid rgb(255 255 255 / 0.2);
+  border-radius: 8px;
+}
+
+.panel-lab h3 {
+  margin: 0.35rem 0 0.3rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.6;
+}
+
+.escenarios {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.escenarios button {
+  text-align: left;
+}
+
+.estado-lab {
+  margin: 0;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  background: rgb(0 0 0 / 0.3);
+  font-variant-numeric: tabular-nums;
+}
+
+.nota-lab {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  opacity: 0.6;
+}

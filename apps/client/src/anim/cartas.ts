@@ -15,8 +15,15 @@ export interface OpcionesMovimiento {
   readonly zIndexFinal?: number;
 }
 
+let reducidoForzado: boolean | null = null;
+/** Para probar: fuerza el movimiento reducido (true/false) o vuelve a la preferencia del sistema (null). */
+export function forzarMovimientoReducido(valor: boolean | null): void {
+  reducidoForzado = valor;
+}
+
 /** Con `prefers-reduced-motion` todo dura casi cero. */
 export function movimientoReducido(): boolean {
+  if (reducidoForzado !== null) return reducidoForzado;
   return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 

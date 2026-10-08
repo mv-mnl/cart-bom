@@ -22,6 +22,17 @@ function resolver(origen: Origen, anclas: Anclas): Punto | null {
   return anclas.jugadores[origen.desde.jugador] ?? null;
 }
 
+/**
+ * Cómo tratar la próxima escena, para el laboratorio de animaciones:
+ * `colocar` pone todo en su lugar sin animar; `desdeOrigen` anima todas las cartas como
+ * si fueran nuevas (por ejemplo, para repetir el reparto con las mismas cartas).
+ */
+export type Preparacion = 'colocar' | 'desdeOrigen';
+let preparacion: Preparacion | null = null;
+export function prepararEscena(modo: Preparacion): void {
+  preparacion = modo;
+}
+
 const difiere = (sprite: Sprite, pose: Pose) =>
   Math.abs(sprite.x - pose.x) > 0.5 ||
   Math.abs(sprite.y - pose.y) > 0.5 ||
@@ -36,6 +47,23 @@ const difiere = (sprite: Sprite, pose: Pose) =>
  */
 export function animarEscena(ctx: ContextoAnimacion): void {
   const { escena, sprites, conocidas } = ctx;
+  const modo = preparacion;
+  preparacion = null;
+  if (modo === 'desdeOrigen') conocidas.clear();
+  if (modo === 'colocar') {
+    escena.cartas.forEach((c, i) => {
+      const sprite = sprites.get(c.key);
+      conocidas.add(c.key);
+      if (!sprite || sprite === ctx.ignorar) return;
+      colocarCarta(sprite, { x: c.x, y: c.y, rotation: c.rotation, escala: c.escala });
+      sprite.zIndex = i + 1;
+      const cara = ctx.textura(c.textura);
+      if (cara) sprite.texture = cara;
+    });
+    for (const key of conocidas)
+      if (!escena.cartas.some((c) => c.key === key)) conocidas.delete(key);
+    return;
+  }
   const presentes = new Set<string>();
   escena.cartas.forEach((c, i) => {
     presentes.add(c.key);

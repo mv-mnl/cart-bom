@@ -41,6 +41,11 @@ function valoresPara(cartas: CartasPartida, baraja: EstiloBaraja) {
   return baraja === 'americana' ? VALORES_52 : VALORES_48;
 }
 
+/** El Conquián con las cartas elegidas. Las cartas se fijan al empezar la partida. */
+export function conquianPara(cartas: CartasPartida, baraja: EstiloBaraja) {
+  return createConquian({ cartasPorJugador: 9, baraja: { valores: valoresPara(cartas, baraja) } });
+}
+
 interface Partida {
   readonly state: ConquianState | null;
   readonly nombres: readonly string[];
@@ -64,8 +69,11 @@ interface Partida {
   readonly silencio: boolean;
   /** Cartas en la zona de armado (solo del cliente hasta que forman juego). */
   readonly armado: Armado;
+  /** Se cerró la pantalla final para ver cómo quedó la mesa. */
+  readonly verMesa: boolean;
   nueva(jugadores: number): void;
   salir(): void;
+  cerrarFinal(): void;
   toggleCarta(cardId: string): void;
   toggleDesmoche(desmoche: Desmoche): void;
   limpiarSeleccion(): void;
@@ -121,7 +129,8 @@ function leerModo(): ModoControl {
   return guardado === 'botones' || guardado === 'arrastrar' ? guardado : 'mixto';
 }
 
-function cancelarIA() {
+/** Detiene la jugada de la computadora que esté pendiente. */
+export function cancelarIA() {
   if (timerIA !== null) clearTimeout(timerIA);
   timerIA = null;
 }
@@ -196,6 +205,7 @@ export const usePartida = create<Partida>((set, get) => {
       guardar(CLAVE_BARAJA, baraja);
     },
     armado: ARMADO_VACIO,
+    verMesa: false,
 
     cambiarModo(modo) {
       set({ modo, seleccion: SIN_SELECCION, armado: ARMADO_VACIO, aviso: null });
@@ -245,21 +255,29 @@ export const usePartida = create<Partida>((set, get) => {
       const seed = crypto.randomUUID();
       set({
         // Las cartas se fijan al empezar; cambiar la baraja a media partida solo cambia el dibujo.
-        state: createConquian({
-          cartasPorJugador: 9,
-          baraja: { valores: valoresPara(get().cartas, get().baraja) },
-        }).setup(jugadores, seed),
+        state: conquianPara(get().cartas, get().baraja).setup(jugadores, seed),
         nombres: Array.from({ length: jugadores }, (_, i) => (i === HUMANO ? 'Tú' : `Compu ${i}`)),
         seleccion: SIN_SELECCION,
         armado: ARMADO_VACIO,
         aviso: null,
+        verMesa: false,
       });
       programarIA();
     },
 
     salir() {
       cancelarIA();
-      set({ state: null, seleccion: SIN_SELECCION, armado: ARMADO_VACIO, aviso: null });
+      set({
+        state: null,
+        seleccion: SIN_SELECCION,
+        armado: ARMADO_VACIO,
+        aviso: null,
+        verMesa: false,
+      });
+    },
+
+    cerrarFinal() {
+      set({ verMesa: true });
     },
 
     toggleCarta(cardId) {

@@ -49,6 +49,11 @@ export function Menu() {
         <SelectorCartas />
         <InterruptorAyudas />
       </div>
+      {import.meta.env.DEV && (
+        <button className="secundario" onClick={() => (location.hash = 'lab')}>
+          🎬 Laboratorio de animaciones
+        </button>
+      )}
     </main>
   );
 }

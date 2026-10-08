@@ -7,6 +7,7 @@ import { animarEscena } from '../anim/escena';
 import { celebrar } from '../anim/victoria';
 import { HUMANO, usePartida, type ModoControl } from '../store';
 import { alSoltar, reordenar, type Arrastrado } from '../ui/arrastre';
+import { resumenFinal } from '../ui/final';
 import { sugerencias } from '../ui/opciones';
 import { ordenarMano } from '../ui/orden';
 import {
@@ -260,20 +261,18 @@ function Escena({ ancho, alto }: { ancho: number; alto: number }) {
     });
   }, [escena, texturas, baraja]);
 
-  // Al terminar la partida: letrero y, si ganaste, confeti.
-  const resultado = state ? conquian.result(state) : null;
-  const final =
-    resultado === null
-      ? null
-      : resultado.type === 'empate'
-        ? 'Empate'
-        : resultado.ganadores.includes(HUMANO)
-          ? '¡Ganaste!'
-          : `Ganó ${nombres[resultado.ganadores[0] ?? -1] ?? 'otro'}`;
+  // Al terminar la partida: letrero y, si ganaste, rayos y confeti. El panel lo pone React.
+  const verMesa = usePartida((s) => s.verMesa);
+  const resumen = useMemo(
+    () => (state && !verMesa ? resumenFinal(state, nombres, HUMANO) : null),
+    [state, nombres, verMesa],
+  );
+  const titulo = resumen?.titulo ?? null;
+  const tipoFinal = resumen?.tipo ?? null;
   useEffect(() => {
-    if (!final || !isInitialised) return;
-    return celebrar(app, ancho, alto, final, final === '¡Ganaste!');
-  }, [final, app, isInitialised, ancho, alto]);
+    if (!titulo || !tipoFinal || !isInitialised) return;
+    return celebrar(app, ancho, alto, titulo, tipoFinal);
+  }, [titulo, tipoFinal, app, isInitialised, ancho, alto]);
 
   useEffect(() => {
     if (!isInitialised) return;

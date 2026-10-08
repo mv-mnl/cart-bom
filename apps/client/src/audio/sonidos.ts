@@ -35,8 +35,19 @@ const desbloquear = () => {
 window.addEventListener('pointerdown', desbloquear);
 window.addEventListener('keydown', desbloquear);
 
+let callado = false;
+/** Hace un cambio de estado sin que suene nada (para el laboratorio de animaciones). */
+export function sinSonido(cambio: () => void): void {
+  callado = true;
+  try {
+    cambio();
+  } finally {
+    callado = false;
+  }
+}
+
 export function sonar(nombre: Sonido, retrasoMs = 0): void {
-  if (!desbloqueado) return;
+  if (!desbloqueado || callado) return;
   const tocar = () => sonidos.get(nombre)?.play();
   if (retrasoMs > 0) setTimeout(tocar, retrasoMs);
   else tocar();
