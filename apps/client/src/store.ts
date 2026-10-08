@@ -8,6 +8,7 @@ import {
   type Desmoche,
 } from '@cartas/conquian';
 import { create } from 'zustand';
+import { DURACION_INTERCAMBIO } from './anim/tiempos';
 import {
   ARMADO_VACIO,
   agregarPieza,
@@ -24,7 +25,23 @@ import type { OrdenMano } from './ui/orden';
 export const HUMANO = 0;
 /** Pausa entre jugadas de la computadora, para que se puedan seguir una por una. */
 const PAUSA_IA_MS = 900;
-const PAUSA_INTERCAMBIO_MS = 150;
+/** En el intercambio, entre que un rival elige su carta y el siguiente. */
+const PAUSA_INTERCAMBIO_MS = 600;
+
+/**
+ * Cuánto esperar antes de la siguiente jugada de la computadora, para que se vea la anterior.
+ * Al terminar el intercambio espera a que cada quien vea la carta que recibió.
+ */
+export function pausaIA(state: ConquianState, anterior: ConquianState | null): number {
+  if (state.fase.type === 'intercambio') return PAUSA_INTERCAMBIO_MS;
+  if (anterior?.fase.type === 'intercambio') return PAUSA_IA_MS + DURACION_INTERCAMBIO * 1000;
+  return PAUSA_IA_MS;
+}
+
+/** En el intercambio, la computadora espera a que elijas tu carta y luego elige uno por uno. */
+export function esperaAlHumano(state: ConquianState): boolean {
+  return state.fase.type === 'intercambio' && state.fase.elegidas[HUMANO] === null;
+}
 
 /**
  * Cómo se juega: solo tocando y con botones, solo arrastrando, o las dos cosas.
@@ -137,15 +154,15 @@ export function cancelarIA() {
 
 export const usePartida = create<Partida>((set, get) => {
   /** Cola de la computadora: una jugada a la vez, con pausa entre cada una. */
-  const programarIA = () => {
+  const programarIA = (anterior: ConquianState | null = null) => {
     cancelarIA();
     const { state } = get();
-    if (!state || conquian.result(state)) return;
+    if (!state || conquian.result(state) || esperaAlHumano(state)) return;
     const bot = state.jugadores.findIndex(
       (_, p) => p !== HUMANO && conquian.validActions(state, p).length > 0,
     );
     if (bot === -1) return;
-    const pausa = state.fase.type === 'intercambio' ? PAUSA_INTERCAMBIO_MS : PAUSA_IA_MS;
+    const pausa = pausaIA(state, anterior);
     timerIA = setTimeout(() => {
       const actual = get().state;
       const accion = actual && jugadaIA(actual, bot);
@@ -171,7 +188,7 @@ export const usePartida = create<Partida>((set, get) => {
             desmoche: null,
           },
     });
-    programarIA();
+    programarIA(state);
   };
 
   return {

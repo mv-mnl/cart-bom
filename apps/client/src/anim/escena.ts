@@ -3,17 +3,22 @@ import type { Anclas, Escena, Origen, Punto } from '../table/layout';
 import { DORSO } from '../table/texturas';
 import {
   colocarCarta,
+  llevarA,
   moverCarta,
   repartirCarta,
   vaHacia,
   voltearCarta,
   type Pose,
 } from './cartas';
-
-/** Separación entre cartas del reparto (a velocidad normal). */
-const PASO_REPARTO = 0.035;
-/** El reparto va a la mitad de velocidad para que se aprecie carta por carta. */
-export const VELOCIDAD_REPARTO = 0.5;
+import {
+  DURACION_INTERCAMBIO,
+  ESPERA_PASADA,
+  LUCIR_INTERCAMBIO,
+  TRAMO_PASADA,
+  PASO_REPARTO,
+  VELOCIDAD_INTERCAMBIO,
+  VELOCIDAD_REPARTO,
+} from './tiempos';
 
 export interface ContextoAnimacion {
   readonly escena: Escena;
@@ -28,6 +33,7 @@ export interface ContextoAnimacion {
 function resolver(origen: Origen, anclas: Anclas): Punto | null {
   if (origen.desde === 'mazo') return anclas.mazo;
   if (origen.desde === 'centro') return anclas.centro;
+  if ('pasada' in origen.desde) return anclas.pasadas[origen.desde.pasada] ?? null;
   return anclas.jugadores[origen.desde.jugador] ?? null;
 }
 
@@ -40,6 +46,24 @@ export type Preparacion = 'colocar' | 'desdeOrigen';
 let preparacion: Preparacion | null = null;
 export function prepararEscena(modo: Preparacion): void {
   preparacion = modo;
+}
+
+const pasadaDe = (origen: Origen | undefined): number | null =>
+  origen !== undefined && typeof origen.desde === 'object' && 'pasada' in origen.desde
+    ? origen.desde.pasada
+    : null;
+const esPasada = (origen: Origen | undefined) => pasadaDe(origen) !== null;
+
+/**
+ * Quiénes tenían su carta esperando en la escena anterior (por mesa: la clave es su
+ * conjunto de cartas conocidas). El último en elegir no alcanza a dejarla: su carta sale
+ * de su mano cuando termina el intercambio.
+ */
+const pasadasVistas = new WeakMap<Set<string>, ReadonlySet<number>>();
+function recordarPasadas(escena: Escena, conocidas: Set<string>): void {
+  const vistas = new Set<number>();
+  for (const c of escena.cartas) if (c.pasadaDe !== undefined) vistas.add(c.pasadaDe);
+  pasadasVistas.set(conocidas, vistas);
 }
 
 const difiere = (sprite: Sprite, pose: Pose) =>
@@ -71,8 +95,13 @@ export function animarEscena(ctx: ContextoAnimacion): void {
     });
     for (const key of conocidas)
       if (!escena.cartas.some((c) => c.key === key)) conocidas.delete(key);
+    recordarPasadas(escena, conocidas);
     return;
   }
+  // Si en esta escena terminó el intercambio, lo demás que llega (la primera carta del mazo)
+  // espera a que se vea qué carta recibió cada quien.
+  const terminaIntercambio = escena.cartas.some((c) => !conocidas.has(c.key) && esPasada(c.origen));
+  const vistas = pasadasVistas.get(conocidas) ?? new Set<number>();
   const presentes = new Set<string>();
   escena.cartas.forEach((c, i) => {
     presentes.add(c.key);
@@ -91,15 +120,39 @@ export function animarEscena(ctx: ContextoAnimacion): void {
       sprite.position.set(desde.x, desde.y);
       sprite.rotation = 0;
       sprite.scale.set(c.escala);
-      // Solo las cartas del reparto traen `orden`.
-      const reparto = c.origen.orden !== undefined;
-      const retraso = (c.origen.orden ?? 0) * PASO_REPARTO;
-      const velocidad = reparto ? VELOCIDAD_REPARTO : 1;
       const cara = ctx.textura(c.textura);
       const dorso = ctx.textura(DORSO);
+      // Las tuyas se descubren al llegar; las de los rivales llegan boca abajo.
+      const tuya = c.textura !== DORSO ? (cara ?? null) : null;
+      const de = pasadaDe(c.origen);
+      const lugar = de === null ? undefined : escena.anclas.pasadas[de];
+      if (de !== null && lugar && dorso) {
+        // La carta que te pasaron (o que se pasan los rivales) cruza la mesa como en el
+        // reparto, y la tuya se queda un momento levantada para que se vea.
+        // La del último en elegir nunca se vio esperando: primero sale de su mano hasta su
+        // lugar. Las demás la esperan, y luego cruzan todas juntas.
+        const tarde = !vistas.has(de);
+        const asiento = escena.anclas.jugadores[de] ?? lugar;
+        sprite.position.set(tarde ? asiento.x : lugar.x, tarde ? asiento.y : lugar.y);
+        sprite.rotation = lugar.rotation;
+        sprite.scale.set(lugar.escala);
+        repartirCarta(sprite, destino, tuya, dorso, {
+          zIndexFinal,
+          velocidad: c.velocidad ?? VELOCIDAD_INTERCAMBIO,
+          lucir: LUCIR_INTERCAMBIO,
+          giro: false,
+          ...(tarde
+            ? { parada: { pose: lugar, tramo: TRAMO_PASADA, espera: ESPERA_PASADA } }
+            : { retraso: TRAMO_PASADA + ESPERA_PASADA }),
+        });
+        return;
+      }
+      // Solo las cartas del reparto traen `orden`.
+      const reparto = c.origen.orden !== undefined;
+      const retraso =
+        (c.origen.orden ?? 0) * PASO_REPARTO + (terminaIntercambio ? DURACION_INTERCAMBIO : 0);
+      const velocidad = c.velocidad ?? (reparto ? VELOCIDAD_REPARTO : 1);
       if (reparto && dorso) {
-        // Las tuyas se descubren al llegar; las de los rivales llegan boca abajo.
-        const tuya = c.textura !== DORSO ? (cara ?? null) : null;
         repartirCarta(sprite, destino, tuya, dorso, { retraso, zIndexFinal, velocidad });
       } else if (c.origen.voltear && cara && dorso) {
         voltearCarta(sprite, destino, cara, dorso, { retraso, zIndexFinal, velocidad });
@@ -109,8 +162,14 @@ export function animarEscena(ctx: ContextoAnimacion): void {
       return;
     }
     if (difiere(sprite, destino) && !vaHacia(sprite, destino)) {
-      moverCarta(sprite, destino, { zIndexFinal });
+      const textura = ctx.textura(c.textura);
+      llevarA(sprite, destino, {
+        zIndexFinal,
+        velocidad: c.velocidad ?? 1,
+        ...(textura ? { textura } : {}),
+      });
     }
   });
   for (const key of conocidas) if (!presentes.has(key)) conocidas.delete(key);
+  recordarPasadas(escena, conocidas);
 }

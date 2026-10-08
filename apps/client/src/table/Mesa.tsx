@@ -165,6 +165,11 @@ function dibujarMarco(g: Graphics, m: Marco) {
 
 function Escena({ ancho, alto }: { ancho: number; alto: number }) {
   const { app, isInitialised } = useApplication();
+  // `resizeTo` solo escucha la ventana; si cambia el contenedor (por ejemplo, crecen los
+  // controles de abajo), el canvas también tiene que ajustarse.
+  useEffect(() => {
+    if (isInitialised) app.resize();
+  }, [app, isInitialised, ancho, alto]);
   useEffect(() => {
     // Para la extensión PixiJS DevTools y las pruebas en navegador.
     if (import.meta.env.DEV && isInitialised) {

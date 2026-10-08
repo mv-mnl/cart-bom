@@ -4,16 +4,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { forzarMovimientoReducido } from '../anim/cartas';
 import { prepararEscena, type Preparacion } from '../anim/escena';
 import { sinSonido } from '../audio/sonidos';
-import { cancelarIA, conquianPara, usePartida } from '../store';
+import { cancelarIA, conquianPara, pausaIA, usePartida } from '../store';
 import { ARMADO_VACIO } from './arrastre';
 import { ESCENARIOS, siguienteJugada, type Preparado } from './escenarios';
 import { SIN_SELECCION } from './opciones';
 import { Partida } from './Partida';
 
 const VELOCIDADES = [0.25, 0.5, 1, 2] as const;
-/** Pausa entre jugadas, igual que la de la computadora en una partida. */
+/** Antes de repartir otra vez en autojugar. */
 const PAUSA_MS = 900;
-const PAUSA_INTERCAMBIO_MS = 250;
 /** Antes de la primera jugada, para ver cómo quedó la mesa. */
 const PAUSA_INICIAL_MS = 700;
 /** En autojugar, cuánto se ve el final antes de repartir otra vez. */
@@ -130,7 +129,9 @@ export function Laboratorio() {
           ? `${nombre} · semilla ${p.semilla}`
           : `${nombre} · 0/${total} · semilla ${p.semilla}`,
       );
+      // Las pausas son las mismas de la computadora en una partida.
       let espera = PAUSA_INICIAL_MS;
+      let simulado = p.inicio;
       p.pasos.forEach((accion, i) => {
         timers.current.push(
           setTimeout(() => {
@@ -146,7 +147,9 @@ export function Laboratorio() {
             setEstado(`${nombre} · ${i + 1}/${total} · semilla ${p.semilla}`);
           }, espera / velocidadRef.current),
         );
-        espera += accion.type === 'pasarCarta' ? PAUSA_INTERCAMBIO_MS : PAUSA_MS;
+        const siguiente = juego.apply(simulado, accion);
+        espera += pausaIA(siguiente, simulado);
+        simulado = siguiente;
       });
     },
     [detener, juego],
@@ -197,8 +200,10 @@ export function Laboratorio() {
         return;
       }
       const accion = siguienteJugada(juego, state);
-      if (accion) aplicar(juego.apply(state, accion), accion);
-      despues(accion?.type === 'pasarCarta' ? PAUSA_INTERCAMBIO_MS : PAUSA_MS, paso);
+      if (!accion) return;
+      const nuevo = juego.apply(state, accion);
+      aplicar(nuevo, accion);
+      despues(pausaIA(nuevo, state), paso);
     };
     despues(PAUSA_INICIAL_MS, paso);
     return () => {

@@ -1,6 +1,7 @@
+import gsap from 'gsap';
 import type { Sprite, Texture } from 'pixi.js';
 import { describe, expect, it } from 'vitest';
-import { moverCarta, olvidarCarta, repartirCarta, vaHacia, voltearCarta } from './cartas';
+import { llevarA, moverCarta, olvidarCarta, repartirCarta, vaHacia, voltearCarta } from './cartas';
 
 const cara = { nombre: 'cara' } as unknown as Texture;
 const dorso = { nombre: 'dorso' } as unknown as Texture;
@@ -50,7 +51,9 @@ describe('velocidad', () => {
     const normal = moverCarta(s, destino, { retraso: 0.1 });
     const lenta = moverCarta(spriteFalso(), destino, { retraso: 0.1, velocidad: 0.5 });
     expect(lenta.timeScale()).toBe(0.5);
-    expect(lenta.delay()).toBeCloseTo(normal.delay() * 2);
+    // Empieza al doble del retraso (en tiempo real), no al cuádruple.
+    const ahora = gsap.globalTimeline.time();
+    expect(lenta.startTime() - ahora).toBeCloseTo((normal.startTime() - ahora) * 2);
     expect(lenta.duration()).toBeCloseTo(normal.duration());
     olvidarCarta(s);
   });
@@ -89,5 +92,71 @@ describe('repartirCarta', () => {
     repartirCarta(s, destino, null, dorso).progress(1);
     expect(s.texture).toBe(dorso);
     expect([s.x, s.y]).toEqual([300, 200]);
+  });
+});
+
+describe('llevarA', () => {
+  it('no corta un reparto: sigue su animación, pero hacia el nuevo lugar', () => {
+    const s = spriteFalso();
+    const tl = repartirCarta(s, destino, cara, dorso);
+    const nuevo = { ...destino, x: 500, y: 150 };
+    llevarA(s, nuevo);
+    // Sigue en su animación (no se volteó de golpe) y ya va al nuevo lugar.
+    expect(s.texture).toBe(dorso);
+    expect(vaHacia(s, nuevo)).toBe(true);
+    tl.progress(1);
+    expect(s.texture).toBe(cara);
+    expect([s.x, s.y]).toEqual([500, 150]);
+    olvidarCarta(s);
+  });
+
+  it('no corta un volteo: lo termina y después va al nuevo lugar', () => {
+    const s = spriteFalso();
+    const tl = voltearCarta(s, destino, cara, dorso);
+    const nuevo = { ...destino, x: 500 };
+    llevarA(s, nuevo);
+    expect(s.texture).toBe(dorso);
+    expect(vaHacia(s, destino)).toBe(true);
+    tl.progress(1);
+    expect(s.texture).toBe(cara);
+    expect(vaHacia(s, nuevo)).toBe(true);
+    olvidarCarta(s);
+  });
+
+  it('una carta en movimiento normal va directo al nuevo lugar', () => {
+    const s = spriteFalso();
+    moverCarta(s, destino);
+    const nuevo = { ...destino, x: 500 };
+    llevarA(s, nuevo);
+    expect(vaHacia(s, nuevo)).toBe(true);
+    olvidarCarta(s);
+  });
+});
+
+describe('llevarA con textura', () => {
+  it('si la carta cambió de cara durante una animación protegida, al final queda con la nueva', () => {
+    const s = spriteFalso();
+    const tl = repartirCarta(s, destino, cara, dorso);
+    // La elegiste para pasar (boca abajo) mientras se volteaba en el reparto.
+    llevarA(s, { ...destino, x: 500 }, { textura: dorso });
+    tl.progress(1);
+    expect(s.texture).toBe(dorso);
+    olvidarCarta(s);
+  });
+});
+
+describe('repartirCarta con parada', () => {
+  it('primero va a su lugar de espera, espera ahí y luego cruza hasta el destino', () => {
+    const s = spriteFalso();
+    const lugar = { x: 100, y: 100, rotation: 0.25, escala: 0.8 };
+    const tl = repartirCarta(s, destino, null, dorso, {
+      giro: false,
+      parada: { pose: lugar, tramo: 0.3, espera: 0.5 },
+    });
+    // Al final del tramo y durante la espera, está en su lugar.
+    tl.seek(0.5);
+    expect([s.x, s.y, s.rotation]).toEqual([100, 100, 0.25]);
+    tl.progress(1);
+    expect([s.x, s.y, s.rotation, s.scale.x]).toEqual([300, 200, 0, 1]);
   });
 });

@@ -2,6 +2,7 @@ import { sePuedeDesmochar, type ConquianView, type Juego } from '@cartas/conquia
 import type { Card } from '@cartas/core';
 import { ARMADO_VACIO, type Armado, type Destino, type Pieza } from '../ui/arrastre';
 import type { Seleccion } from '../ui/opciones';
+import { VELOCIDAD_INTERCAMBIO } from '../anim/tiempos';
 import { CARTA_H, CARTA_W, DORSO, claveTextura } from './texturas';
 
 export type Toque =
@@ -28,11 +29,18 @@ export interface SpriteCarta {
   readonly toque: Toque | null;
   /** Si la carta aparece de nuevo en pantalla, de dónde llega (para animarla). */
   readonly origen?: Origen;
+  /** Velocidad de sus movimientos (1 normal); el intercambio va más despacio. */
+  readonly velocidad?: number;
+  /** Es la carta que este jugador eligió para pasar, esperando en su lugar. */
+  readonly pasadaDe?: number;
 }
 
-/** De dónde llega una carta nueva: el mazo, el centro o el asiento de un jugador. */
+/**
+ * De dónde llega una carta nueva: el mazo, el centro, el asiento de un jugador o el lugar
+ * donde un jugador dejó la carta que pasa a su derecha (`pasada`).
+ */
 export interface Origen {
-  readonly desde: 'mazo' | 'centro' | { readonly jugador: number };
+  readonly desde: 'mazo' | 'centro' | { readonly jugador: number } | { readonly pasada: number };
   /** Llega boca abajo y se voltea en el camino (la carta que sale del mazo). */
   readonly voltear?: boolean;
   /** Turno en el reparto, para que las cartas salgan una tras otra. */
@@ -49,6 +57,14 @@ export interface Anclas {
   readonly mazo: Punto;
   readonly centro: Punto;
   readonly jugadores: readonly Punto[];
+  /** Donde cada jugador deja, durante el intercambio, la carta que va a pasar. */
+  readonly pasadas: readonly LugarPasada[];
+}
+
+/** El lugar de una carta pasada: dónde, con qué inclinación y de qué tamaño. */
+export interface LugarPasada extends Punto {
+  readonly rotation: number;
+  readonly escala: number;
 }
 
 export interface Etiqueta {
@@ -316,19 +332,26 @@ export function layoutMesa(
 
   const asientosDe = orden[n] ?? [];
   const anclasJugadores: Punto[] = [];
+  const rotaciones: number[] = [];
   // Mientras dura el intercambio, las cartas nuevas de la mano vienen del reparto;
-  // después, la única que llega es la que te pasó el de tu izquierda.
+  // después, la única que llega es la que pasó el de la izquierda, desde donde la dejó.
   const repartiendo = view.fase.type === 'intercambio';
+  /** Quiénes ya eligieron la carta que pasan: se dibuja frente a ellos, boca abajo. */
+  const yaPasaron = view.fase.type === 'intercambio' ? view.fase.listos : [];
+  const miPasada = view.fase.type === 'intercambio' ? view.fase.miCarta : null;
+  const izquierdaDe = (p: number) => (p - 1 + n) % n;
   view.jugadores.forEach((jugador, p) => {
     const rel = (p - view.yo + n) % n;
     const lugar = asientosDe[rel] ?? 'arriba';
     const a = asientos[lugar];
     duenoActual = p;
     anclasJugadores[p] = { x: a.x, y: a.y };
+    rotaciones[p] = a.rotation;
 
     if (rel === 0) {
       // Las cartas que están en la zona de armado no se dibujan en la mano.
-      const mano = view.mano.filter((c) => !armado.cartas.includes(c.id));
+      // La que elegiste para pasar ya no está en la mano: espera frente a ti.
+      const mano = view.mano.filter((c) => !armado.cartas.includes(c.id) && c.id !== miPasada);
       const paso = Math.min(w * 1.04, (ancho * 0.92 - w) / Math.max(1, mano.length - 1));
       const inicio = (-paso * (mano.length - 1)) / 2;
       mano.forEach((carta, i) => {
@@ -345,7 +368,7 @@ export function layoutMesa(
           toque: { tipo: 'mano', cardId: carta.id },
           origen: repartiendo
             ? { desde: 'mazo', orden: i * n }
-            : { desde: { jugador: (view.yo - 1 + n) % n } },
+            : { desde: { pasada: izquierdaDe(view.yo) } },
         });
       });
       const escM = escala * 0.82;
@@ -411,11 +434,16 @@ export function layoutMesa(
       return;
     }
 
+    // Si ya eligió la que pasa, esa espera frente a él y su mano tiene una menos.
+    const enMano = jugador.cartasEnMano - (yaPasaron[p] ? 1 : 0);
     const paso = CARTA_W * escalaRival * 0.28;
-    const inicio = (-paso * (jugador.cartasEnMano - 1)) / 2;
-    for (let i = 0; i < jugador.cartasEnMano; i++) {
+    const inicio = (-paso * (enMano - 1)) / 2;
+    for (let i = 0; i < enMano; i++) {
+      // Después del intercambio, la última de su mano es la que le pasaron: con su propia
+      // clave, para que se vea llegar (aunque su mano siga teniendo las mismas cartas).
+      const recibida = !repartiendo && i === enMano - 1;
       cartas.push({
-        key: `oculta-${p}-${i}`,
+        key: recibida ? `recibida-${p}` : `oculta-${p}-${i}`,
         textura: DORSO,
         ...punto(a, inicio + i * paso, 0),
         rotation: a.rotation,
@@ -424,7 +452,11 @@ export function layoutMesa(
         pista: false,
         alpha: 1,
         toque: null,
-        origen: { desde: 'mazo', orden: i * n + rel },
+        origen: repartiendo
+          ? { desde: 'mazo', orden: i * n + rel }
+          : recibida
+            ? { desde: { pasada: izquierdaDe(p) } }
+            : { desde: { jugador: p } },
       });
     }
 
@@ -604,10 +636,44 @@ export function layoutMesa(
     }
   }
 
+  // Intercambio: el lugar de cada carta pasada, entre su dueño y el centro, cargado hacia
+  // el de la derecha (a quien se la pasa) e inclinada hacia él.
+  const pasadas: LugarPasada[] = anclasJugadores.map((s, p) => {
+    const der = anclasJugadores[(p + 1) % n] ?? s;
+    return {
+      x: s.x + (cx - s.x) * 0.42 + (der.x - s.x) * 0.14,
+      y: s.y + (cy - s.y) * 0.42 + (der.y - s.y) * 0.14,
+      rotation: (rotaciones[p] ?? 0) + 0.25,
+      escala: escala * 0.8,
+    };
+  });
+  const ponerPasada = (p: number, key: string) => {
+    const lugar = pasadas[p];
+    if (!lugar) return;
+    cartas.push({
+      key,
+      textura: DORSO,
+      ...lugar,
+      pasadaDe: p,
+      seleccionada: false,
+      pista: false,
+      alpha: 1,
+      toque: null,
+      origen: { desde: { jugador: p } },
+      velocidad: VELOCIDAD_INTERCAMBIO,
+    });
+  };
+  // La tuya conserva su id: sale de tu mano hasta su lugar. Las de los rivales salen de su asiento.
+  if (miPasada) ponerPasada(view.yo, miPasada);
+  yaPasaron.forEach((listo, p) => {
+    if (listo && p !== view.yo) ponerPasada(p, `pasada-${p}`);
+  });
+
   const anclas: Anclas = {
     mazo: { x: cx - w * 1.5, y: cy },
     centro: { x: cx, y: cy },
     jugadores: anclasJugadores,
+    pasadas,
   };
   return { cartas, etiquetas, zonas, marcos, anclas };
 }
