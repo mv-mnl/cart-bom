@@ -1,10 +1,12 @@
 import type { Sprite, Texture } from 'pixi.js';
 import type { Anclas, Escena, Origen, Punto } from '../table/layout';
 import { DORSO } from '../table/texturas';
-import { colocarCarta, moverCarta, voltearCarta, type Pose } from './cartas';
+import { colocarCarta, moverCarta, vaHacia, voltearCarta, type Pose } from './cartas';
 
-/** Separación entre cartas del reparto. */
+/** Separación entre cartas del reparto (a velocidad normal). */
 const PASO_REPARTO = 0.035;
+/** El reparto va a la mitad de velocidad para que se aprecie carta por carta. */
+export const VELOCIDAD_REPARTO = 0.5;
 
 export interface ContextoAnimacion {
   readonly escena: Escena;
@@ -82,17 +84,22 @@ export function animarEscena(ctx: ContextoAnimacion): void {
       sprite.position.set(desde.x, desde.y);
       sprite.rotation = 0;
       sprite.scale.set(c.escala);
+      // Solo las cartas del reparto traen `orden`.
+      const reparto = c.origen.orden !== undefined;
       const retraso = (c.origen.orden ?? 0) * PASO_REPARTO;
+      const velocidad = reparto ? VELOCIDAD_REPARTO : 1;
       const cara = ctx.textura(c.textura);
       const dorso = ctx.textura(DORSO);
       if (c.origen.voltear && cara && dorso) {
-        voltearCarta(sprite, destino, cara, dorso, { retraso, zIndexFinal });
+        voltearCarta(sprite, destino, cara, dorso, { retraso, zIndexFinal, velocidad });
       } else {
-        moverCarta(sprite, destino, { retraso, zIndexFinal });
+        moverCarta(sprite, destino, { retraso, zIndexFinal, velocidad });
       }
       return;
     }
-    if (difiere(sprite, destino)) moverCarta(sprite, destino, { zIndexFinal });
+    if (difiere(sprite, destino) && !vaHacia(sprite, destino)) {
+      moverCarta(sprite, destino, { zIndexFinal });
+    }
   });
   for (const key of conocidas) if (!presentes.has(key)) conocidas.delete(key);
 }

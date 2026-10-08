@@ -1,6 +1,6 @@
 import type { Sprite, Texture } from 'pixi.js';
 import { describe, expect, it } from 'vitest';
-import { moverCarta, olvidarCarta, voltearCarta } from './cartas';
+import { moverCarta, olvidarCarta, vaHacia, voltearCarta } from './cartas';
 
 const cara = { nombre: 'cara' } as unknown as Texture;
 const dorso = { nombre: 'dorso' } as unknown as Texture;
@@ -41,5 +41,28 @@ describe('voltearCarta', () => {
     voltearCarta(s, destino, cara, dorso);
     olvidarCarta(s);
     expect(s.texture).toBe(cara);
+  });
+});
+
+describe('velocidad', () => {
+  it('a 0.5 la animación y su retraso duran el doble', () => {
+    const s = spriteFalso();
+    const normal = moverCarta(s, destino, { retraso: 0.1 });
+    const lenta = moverCarta(spriteFalso(), destino, { retraso: 0.1, velocidad: 0.5 });
+    expect(lenta.timeScale()).toBe(0.5);
+    expect(lenta.delay()).toBeCloseTo(normal.delay() * 2);
+    expect(lenta.duration()).toBeCloseTo(normal.duration());
+    olvidarCarta(s);
+  });
+});
+
+describe('vaHacia', () => {
+  it('sabe a dónde va una carta mientras se mueve, y lo olvida al detenerla', () => {
+    const s = spriteFalso();
+    moverCarta(s, destino, { velocidad: 0.5 });
+    expect(vaHacia(s, destino)).toBe(true);
+    expect(vaHacia(s, { ...destino, x: 10 })).toBe(false);
+    olvidarCarta(s);
+    expect(vaHacia(s, destino)).toBe(false);
   });
 });

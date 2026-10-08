@@ -13,6 +13,8 @@ export interface OpcionesMovimiento {
   readonly retraso?: number;
   /** zIndex al terminar; mientras viaja va por encima de las demás. */
   readonly zIndexFinal?: number;
+  /** 1 es normal; 0.5 va a la mitad de velocidad (también el retraso). */
+  readonly velocidad?: number;
 }
 
 let reducidoForzado: boolean | null = null;
@@ -42,9 +44,29 @@ const activas = new WeakMap<Sprite, gsap.core.Timeline>();
  */
 const carasPendientes = new WeakMap<Sprite, Texture>();
 
+/** A dónde va cada carta mientras se mueve. */
+const destinos = new WeakMap<Sprite, Pose>();
+
+/**
+ * La carta ya va en camino a `pose`. Así un cambio de estado a media animación
+ * (por ejemplo, la computadora eligiendo carta durante el reparto) no la reinicia.
+ */
+export function vaHacia(sprite: Sprite, pose: Pose): boolean {
+  const d = destinos.get(sprite);
+  return (
+    d !== undefined &&
+    activas.has(sprite) &&
+    Math.abs(d.x - pose.x) < 0.5 &&
+    Math.abs(d.y - pose.y) < 0.5 &&
+    Math.abs(d.rotation - pose.rotation) < 0.001 &&
+    Math.abs(d.escala - pose.escala) < 0.001
+  );
+}
+
 function detener(sprite: Sprite): void {
   activas.get(sprite)?.kill();
   activas.delete(sprite);
+  destinos.delete(sprite);
   const cara = carasPendientes.get(sprite);
   if (cara) {
     sprite.texture = cara;
@@ -60,15 +82,23 @@ export function olvidarCarta(sprite: Sprite): void {
   detener(sprite);
 }
 
-function timelineSobre(sprite: Sprite, { retraso = 0, zIndexFinal }: OpcionesMovimiento) {
-  const tl = gsap.timeline({ delay: retraso });
+function timelineSobre(
+  sprite: Sprite,
+  destino: Pose,
+  { retraso = 0, zIndexFinal, velocidad = 1 }: OpcionesMovimiento,
+) {
+  const tl = gsap.timeline({ delay: retraso / velocidad }).timeScale(velocidad);
   activas.set(sprite, tl);
+  destinos.set(sprite, destino);
+  tl.eventCallback('onComplete', () => {
+    if (activas.get(sprite) !== tl) return;
+    activas.delete(sprite);
+    destinos.delete(sprite);
+    if (zIndexFinal !== undefined) sprite.zIndex = zIndexFinal;
+  });
   if (zIndexFinal !== undefined) {
     tl.call(() => {
       sprite.zIndex = 50_000 + zIndexFinal;
-    });
-    tl.eventCallback('onComplete', () => {
-      sprite.zIndex = zIndexFinal;
     });
   }
   return tl;
@@ -90,7 +120,7 @@ export function moverCarta(
 ): gsap.core.Timeline {
   detener(sprite);
   const d = duracion(sprite, destino);
-  return timelineSobre(sprite, opciones)
+  return timelineSobre(sprite, destino, opciones)
     .to(
       sprite,
       { x: destino.x, y: destino.y, rotation: destino.rotation, duration: d, ease: 'power2.out' },
@@ -116,7 +146,7 @@ export function voltearCarta(
   const d = Math.max(0.36, duracion(sprite, destino));
   sprite.texture = dorso;
   carasPendientes.set(sprite, cara);
-  return timelineSobre(sprite, opciones)
+  return timelineSobre(sprite, destino, opciones)
     .to(
       sprite,
       { x: destino.x, y: destino.y, rotation: destino.rotation, duration: d, ease: 'power2.out' },
