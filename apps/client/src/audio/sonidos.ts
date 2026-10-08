@@ -1,0 +1,93 @@
+import { conquian, type ConquianState } from '@cartas/conquian';
+import { Howl, Howler } from 'howler';
+import { HUMANO, usePartida } from '../store';
+
+const NOMBRES = [
+  'carta',
+  'voltear',
+  'bajar',
+  'botar',
+  'pasar',
+  'repartir',
+  'error',
+  'victoria',
+  'derrota',
+] as const;
+export type Sonido = (typeof NOMBRES)[number];
+
+const VOLUMEN: Partial<Record<Sonido, number>> = { pasar: 0.5, carta: 0.7, error: 0.6 };
+
+/** Registro de sonidos: se cargan una sola vez. */
+const sonidos = new Map<Sonido, Howl>(
+  NOMBRES.map((n) => [
+    n,
+    new Howl({ src: [`/assets/sounds/${n}.wav`], volume: VOLUMEN[n] ?? 0.9, preload: true }),
+  ]),
+);
+
+// Los navegadores no dejan sonar nada antes de que la persona interactúe con la página.
+let desbloqueado = false;
+const desbloquear = () => {
+  desbloqueado = true;
+  window.removeEventListener('pointerdown', desbloquear);
+  window.removeEventListener('keydown', desbloquear);
+};
+window.addEventListener('pointerdown', desbloquear);
+window.addEventListener('keydown', desbloquear);
+
+export function sonar(nombre: Sonido, retrasoMs = 0): void {
+  if (!desbloqueado) return;
+  const tocar = () => sonidos.get(nombre)?.play();
+  if (retrasoMs > 0) setTimeout(tocar, retrasoMs);
+  else tocar();
+}
+
+/** Qué sonido corresponde a pasar de un estado al siguiente con la última jugada. */
+function sonidosDe(
+  antes: ConquianState | null,
+  despues: ConquianState | null,
+  accion: string | null,
+): Sonido[] {
+  if (!despues) return [];
+  if (!antes) return ['repartir'];
+  const lista: Sonido[] = [];
+  if (accion === 'botar') lista.push('botar');
+  else if (accion === 'tomar' || accion === 'bajar' || accion === 'agregar') lista.push('bajar');
+  else if (accion === 'pasarCarta') lista.push('carta');
+  else if (accion === 'pasar') lista.push('pasar');
+
+  const resultado = conquian.result(despues);
+  if (resultado && !conquian.result(antes)) {
+    lista.push(
+      resultado.type === 'ganador' && resultado.ganadores.includes(HUMANO) ? 'victoria' : 'derrota',
+    );
+    return lista;
+  }
+  // Se volteó una carta nueva del mazo.
+  const { fase } = despues;
+  if (
+    fase.type === 'oferta' &&
+    fase.origen === 'mazo' &&
+    (antes.fase.type !== 'oferta' || antes.fase.carta.id !== fase.carta.id)
+  ) {
+    lista.push('voltear');
+  }
+  return lista;
+}
+
+/** Escucha la partida y toca los sonidos. Se llama una vez al iniciar la app. */
+export function iniciarSonidos(): void {
+  Howler.mute(usePartida.getState().silencio);
+  usePartida.subscribe((s, previo) => {
+    if (s.silencio !== previo.silencio) Howler.mute(s.silencio);
+    if (s.aviso && s.aviso !== previo.aviso) sonar('error');
+    if (s.state !== previo.state) {
+      const nueva =
+        previo.state === null || s.state === null || s.ultimaJugada === previo.ultimaJugada;
+      const accion = nueva ? null : (s.ultimaJugada?.accion.type ?? null);
+      sonidosDe(nueva ? null : previo.state, s.state, accion).forEach((n, i) => sonar(n, i * 180));
+    }
+    // Poner una carta en la zona de armado.
+    if (s.armado !== previo.armado && s.state === previo.state) sonar('carta');
+  });
+}
