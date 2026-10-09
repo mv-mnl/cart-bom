@@ -78,7 +78,9 @@ function ayuda(state: ConquianState, modo: ModoControl): string | null {
   const soloArrastrar = modo === 'arrastrar';
   const { fase } = state;
   if (fase.type === 'intercambio' && fase.elegidas[HUMANO] === null) {
-    return soloArrastrar ? 'Arrástrala al centro.' : 'Tócala o arrástrala al centro.';
+    return soloArrastrar
+      ? 'Arrástrala al lugar marcado junto a tu mano.'
+      : 'Tócala o arrástrala al lugar marcado junto a tu mano.';
   }
   if (fase.type === 'oferta' && fase.cola[0] === HUMANO) {
     return soloArrastrar

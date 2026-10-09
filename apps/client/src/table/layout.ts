@@ -90,7 +90,8 @@ export interface Zona {
 /** Recuadro que se dibuja: la zona de armado, o un lugar resaltado. */
 export interface Marco {
   readonly clave: string;
-  readonly tipo: 'armado' | 'armado-inactivo' | 'destino' | 'pista';
+  /** `hueco`: el lugar donde va la carta que pasas en el intercambio. */
+  readonly tipo: 'armado' | 'armado-inactivo' | 'destino' | 'pista' | 'hueco';
   readonly x: number;
   readonly y: number;
   readonly ancho: number;
@@ -340,6 +341,11 @@ export function layoutMesa(
   const yaPasaron = view.fase.type === 'intercambio' ? view.fase.listos : [];
   const miPasada = view.fase.type === 'intercambio' ? view.fase.miCarta : null;
   const izquierdaDe = (p: number) => (p - 1 + n) % n;
+  /** Tu zona de armado, si se dibuja: tu lugar del intercambio va junto a ella. */
+  // En un objeto porque se llena dentro del ciclo de jugadores (TypeScript no sigue esa asignación).
+  const tuArmado: { rect: { x: number; y: number; ancho: number; alto: number } | null } = {
+    rect: null,
+  };
   view.jugadores.forEach((jugador, p) => {
     const rel = (p - view.yo + n) % n;
     const lugar = asientosDe[rel] ?? 'arriba';
@@ -389,6 +395,7 @@ export function layoutMesa(
         ancho: anchoZona,
         alto: hM + pad * 2,
       };
+      tuArmado.rect = zona;
       juegosALosLados(jugador.juegos, zona.x, zona.x + zona.ancho, yJuegos, escM);
       zonas.push({ clave: 'armado', destino: { tipo: 'armado' }, ...zona });
       marcos.push({ clave: 'armado', tipo: armadoActivo ? 'armado' : 'armado-inactivo', ...zona });
@@ -638,14 +645,19 @@ export function layoutMesa(
 
   // Intercambio: el lugar de cada carta pasada, entre su dueño y el centro, cargado hacia
   // el de la derecha (a quien se la pasa) e inclinada hacia él.
-  const pasadas: LugarPasada[] = anclasJugadores.map((s, p) => {
-    const der = anclasJugadores[(p + 1) % n] ?? s;
-    return {
-      x: s.x + (cx - s.x) * 0.42 + (der.x - s.x) * 0.14,
-      y: s.y + (cy - s.y) * 0.42 + (der.y - s.y) * 0.14,
-      rotation: (rotaciones[p] ?? 0) + 0.25,
-      escala: escala * 0.8,
-    };
+  const pasadas = lugaresDePasada({
+    asientos: anclasJugadores,
+    rotaciones,
+    centro: { x: cx, y: cy },
+    ancho,
+    alto,
+    margenSup,
+    w,
+    escala: escala * 0.8,
+    yo: view.yo,
+    armado: tuArmado.rect,
+    // Lo que hay en el centro (mazo, carta ofrecida, muertas y sus letreros): no se tapa.
+    pila: { x0: cx - w * 2.1, x1: cx + w * 2.1, y0: cy - h * 0.85, y1: cy + h * 0.8 },
   });
   const ponerPasada = (p: number, key: string) => {
     const lugar = pasadas[p];
@@ -665,6 +677,51 @@ export function layoutMesa(
   };
   // La tuya conserva su id: sale de tu mano hasta su lugar. Las de los rivales salen de su asiento.
   if (miPasada) ponerPasada(view.yo, miPasada);
+  const miLugar = pasadas[view.yo];
+  if (view.fase.type === 'intercambio' && miLugar) {
+    const der = (view.yo + 1) % n;
+    const anchoH = w * 0.8 * 1.25;
+    const altoH = h * 0.8 * 1.25;
+    if (!miPasada) {
+      // Mientras no eliges: el hueco marcado, que también es donde se suelta (primero en la
+      // lista, para que gane si toca la zona de armado).
+      const rect = {
+        x: miLugar.x - anchoH / 2,
+        y: miLugar.y - altoH / 2,
+        ancho: anchoH,
+        alto: altoH,
+      };
+      marcos.push({ clave: 'hueco-pasada', tipo: 'hueco', ...rect });
+      const margen = w * 0.3;
+      zonas.unshift({
+        clave: 'pasada',
+        destino: { tipo: 'pasada' },
+        x: rect.x - margen,
+        y: rect.y - margen,
+        ancho: rect.ancho + margen * 2,
+        alto: rect.alto + margen * 2,
+      });
+    }
+    // Debajo de la carta; si ahí está la zona de armado (pantallas angostas), arriba.
+    const tamanoPara = Math.max(11, w * 0.16);
+    const separa = Math.max(10, w * 0.14);
+    const abajo = miLugar.y + altoH / 2 + separa;
+    const zonaAbajo = tuArmado.rect;
+    const chocaAbajo =
+      zonaAbajo !== null &&
+      abajo + tamanoPara / 2 > zonaAbajo.y &&
+      abajo - tamanoPara / 2 < zonaAbajo.y + zonaAbajo.alto &&
+      miLugar.x + w > zonaAbajo.x &&
+      miLugar.x - w < zonaAbajo.x + zonaAbajo.ancho;
+    etiquetas.push({
+      key: 'pasada-para',
+      texto: `Para ${nombres[der] ?? ''}`,
+      x: miLugar.x,
+      y: chocaAbajo ? miLugar.y - altoH / 2 - separa : abajo,
+      color: GRIS,
+      tamano: tamanoPara,
+    });
+  }
   yaPasaron.forEach((listo, p) => {
     if (listo && p !== view.yo) ponerPasada(p, `pasada-${p}`);
   });
@@ -676,4 +733,80 @@ export function layoutMesa(
     pasadas,
   };
   return { cartas, etiquetas, zonas, marcos, anclas };
+}
+
+interface Rect {
+  readonly x0: number;
+  readonly x1: number;
+  readonly y0: number;
+  readonly y1: number;
+}
+
+/** Qué tan lejos del centro, hacia su dueño, queda cada carta del intercambio (0 a 1). */
+const PASADA_AL_DUENO = 0.55;
+/** Qué tanto se corre hacia el jugador de la derecha (fracción del espacio de ese lado). */
+const PASADA_A_LA_DERECHA = 0.3;
+/** Inclinación hacia el de la derecha (radianes), igual para todos. */
+const PASADA_INCLINACION = 0.25;
+
+/**
+ * Dónde espera la carta que cada jugador pasa: todas con la misma regla, como un molinete
+ * alrededor del centro. Cada una queda frente a su dueño, a la misma proporción entre el
+ * centro y su asiento, corrida hacia la derecha del dueño (el que la recibe) e inclinada
+ * igual. Ninguna tapa el centro, y la tuya no se encima con tu zona de armado (ahí también
+ * se suelta al arrastrar).
+ */
+function lugaresDePasada(o: {
+  readonly asientos: readonly Punto[];
+  readonly rotaciones: readonly number[];
+  readonly centro: Punto;
+  readonly ancho: number;
+  readonly alto: number;
+  readonly margenSup: number;
+  readonly w: number;
+  readonly escala: number;
+  readonly yo: number;
+  readonly armado: { x: number; y: number; ancho: number; alto: number } | null;
+  readonly pila: Rect;
+}): LugarPasada[] {
+  const { centro, w } = o;
+  const separacion = w * 0.2;
+  return o.asientos.map((asiento, p) => {
+    // Hacia el dueño (desde el centro) y, girando 90°, hacia su derecha: abajo→derecha,
+    // derecha→arriba, arriba→izquierda, izquierda→abajo.
+    const fx = asiento.x - centro.x;
+    const fy = asiento.y - centro.y;
+    const largo = Math.hypot(fx, fy) || 1;
+    const lx = fy / largo;
+    const ly = -fx / largo;
+    // El espacio que hay hacia ese lado, hasta el borde de la mesa.
+    const espacio =
+      Math.abs(lx) > Math.abs(ly)
+        ? o.ancho / 2
+        : ly < 0
+          ? centro.y - o.margenSup
+          : o.alto - centro.y;
+    let x = centro.x + fx * PASADA_AL_DUENO + lx * espacio * PASADA_A_LA_DERECHA;
+    let y = centro.y + fy * PASADA_AL_DUENO + ly * espacio * PASADA_A_LA_DERECHA;
+
+    // Medio tamaño de la carta, ya girada como la mano de su dueño.
+    const rotation = (o.rotaciones[p] ?? 0) + PASADA_INCLINACION;
+    const deLado = Math.abs(Math.sin(rotation)) > 0.7;
+    // (un 10 % más por la inclinación).
+    const mw = ((deLado ? CARTA_H : CARTA_W) * o.escala * 1.1) / 2;
+    const mh = ((deLado ? CARTA_W : CARTA_H) * o.escala * 1.1) / 2;
+    const choca = (r: Rect) => x + mw > r.x0 && x - mw < r.x1 && y + mh > r.y0 && y - mh < r.y1;
+    // Si toca el centro, se aparta hacia su lado (el de quien la recibe).
+    const apartar = (r: Rect) => {
+      if (!choca(r)) return;
+      if (Math.abs(lx) > Math.abs(ly)) x = lx > 0 ? r.x1 + mw + separacion : r.x0 - mw - separacion;
+      else y = ly > 0 ? r.y1 + mh + separacion : r.y0 - mh - separacion;
+    };
+    apartar(o.pila);
+    if (p === o.yo && o.armado) {
+      const a = o.armado;
+      apartar({ x0: a.x, x1: a.x + a.ancho, y0: a.y, y1: a.y + a.alto });
+    }
+    return { x, y, rotation, escala: o.escala };
+  });
 }

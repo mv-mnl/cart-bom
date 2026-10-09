@@ -1,14 +1,18 @@
 import { conquian, type ConquianState } from '@cartas/conquian';
 import { describe, expect, it } from 'vitest';
 import { SIN_SELECCION } from '../ui/opciones';
-import { layoutMesa, type Escena } from './layout';
+import { layoutMesa, zonaEn, type Escena } from './layout';
 import { DORSO } from './texturas';
 
-const escenaDe = (state: ConquianState): Escena =>
+const escenaDe = (state: ConquianState, zonaArmado = false): Escena =>
   layoutMesa(conquian.view(state, 0), 1280, 760, {
     sel: SIN_SELECCION,
     nombres: ['Tú', 'Compu 1', 'Compu 2'],
+    zonaArmado,
   });
+
+const dentro = (z: { x: number; y: number; ancho: number; alto: number }, x: number, y: number) =>
+  x >= z.x && x <= z.x + z.ancho && y >= z.y && y <= z.y + z.alto;
 
 /** Aplica pasarCarta con la primera carta de la mano de cada jugador indicado. */
 function pasan(state: ConquianState, jugadores: number[]): ConquianState {
@@ -52,4 +56,72 @@ describe('layout del intercambio', () => {
     expect(e.cartas.find((c) => c.key === 'recibida-2')?.origen).toEqual({ desde: { pasada: 1 } });
     expect(e.cartas.filter((c) => c.key.startsWith('oculta-2-'))).toHaveLength(8);
   });
+});
+
+describe('tu lugar del intercambio (modos con arrastre)', () => {
+  it('se suelta justo donde cae la carta en la animación, y gana sobre la zona de armado', () => {
+    const e = escenaDe(inicio, true);
+    const lugar = e.anclas.pasadas[0];
+    if (!lugar) throw new Error('sin lugar');
+    expect(zonaEn(e, lugar.x, lugar.y)).toEqual({ tipo: 'pasada' });
+    // La carta elegida termina exactamente ahí.
+    const despues = escenaDe(pasan(inicio, [0]), true);
+    const pasada = despues.cartas.find((c) => c.key === miCarta);
+    expect([pasada?.x, pasada?.y]).toEqual([lugar.x, lugar.y]);
+  });
+
+  it('no se encima con la zona de armado y se marca con su hueco y para quién es', () => {
+    const e = escenaDe(inicio, true);
+    const armado = e.zonas.find((z) => z.clave === 'armado');
+    const lugar = e.anclas.pasadas[0];
+    if (!armado || !lugar) throw new Error('falta algo');
+    expect(dentro(armado, lugar.x, lugar.y)).toBe(false);
+    expect(e.marcos.some((m) => m.tipo === 'hueco')).toBe(true);
+    expect(e.etiquetas.find((t) => t.key === 'pasada-para')?.texto).toBe('Para Compu 1');
+  });
+
+  it('cuando ya la elegiste, ya no hay dónde soltar otra', () => {
+    const e = escenaDe(pasan(inicio, [0]), true);
+    expect(e.zonas.some((z) => z.clave === 'pasada')).toBe(false);
+    expect(e.marcos.some((m) => m.tipo === 'hueco')).toBe(false);
+  });
+});
+
+describe('lugares del intercambio: la misma regla para todos', () => {
+  const pantallas: [number, number][] = [
+    [2000, 1150],
+    [1280, 760],
+    [390, 780],
+  ];
+  for (const n of [2, 3, 4]) {
+    for (const [ancho, alto] of pantallas) {
+      it(`${n} jugadores en ${ancho}×${alto}: frente a su dueño, sin tocar el centro ni encimarse`, () => {
+        const state = conquian.setup(n, 'lugares');
+        const e = layoutMesa(conquian.view(state, 0), ancho, alto, {
+          sel: SIN_SELECCION,
+          nombres: [],
+          zonaArmado: true,
+        });
+        const { centro, jugadores, pasadas, mazo } = e.anclas;
+        pasadas.forEach((l, p) => {
+          const dueno = jugadores[p];
+          if (!dueno) throw new Error('sin dueño');
+          // Más cerca de su dueño que del lado contrario.
+          const haciaDueno =
+            (l.x - centro.x) * (dueno.x - centro.x) + (l.y - centro.y) * (dueno.y - centro.y);
+          expect(haciaDueno).toBeGreaterThan(0);
+          // No tapa el mazo.
+          expect(Math.abs(l.x - mazo.x) > 40 || Math.abs(l.y - mazo.y) > 60).toBe(true);
+        });
+        // Ninguna se encima con otra.
+        for (let i = 0; i < pasadas.length; i++)
+          for (let j = i + 1; j < pasadas.length; j++) {
+            const a = pasadas[i];
+            const b = pasadas[j];
+            if (!a || !b) continue;
+            expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(40);
+          }
+      });
+    }
+  }
 });

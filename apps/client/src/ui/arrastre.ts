@@ -93,6 +93,8 @@ export type Arrastrado =
 /** Dónde se soltó. */
 export type Destino =
   | { readonly tipo: 'centro' }
+  /** Tu lugar del intercambio: ahí se suelta la carta que le pasas al de la derecha. */
+  | { readonly tipo: 'pasada' }
   | { readonly tipo: 'muertas' }
   | { readonly tipo: 'armado' }
   | { readonly tipo: 'juego'; readonly juegoId: string }
@@ -164,13 +166,18 @@ export function alSoltar(
         return { tipo: 'reordenar' };
       case 'armado':
         return armar(arrastrado);
+      case 'pasada':
+        return jugar(
+          acciones.find((a) => a.type === 'pasarCarta' && a.cardId === cardId),
+          'Ya elegiste la carta que pasas.',
+        );
       case 'centro':
       case 'muertas':
         return jugar(
-          acciones.find(
-            (a) => (a.type === 'botar' || a.type === 'pasarCarta') && a.cardId === cardId,
-          ),
-          'Al centro solo se suelta la carta que vas a botar.',
+          acciones.find((a) => a.type === 'botar' && a.cardId === cardId),
+          state.fase.type === 'intercambio'
+            ? 'Para pasarla, suéltala en el lugar marcado junto a tu mano.'
+            : 'Al centro solo se suelta la carta que vas a botar.',
         );
       case 'juego': {
         // La carta arrastrada junto con las que ya tenías seleccionadas.
@@ -216,6 +223,7 @@ export function alSoltar(
         'Esas cartas no forman juego con la de la mesa.',
       );
     case 'centro':
+    case 'pasada':
       return { tipo: 'nada', motivo: null };
   }
 }

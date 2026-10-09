@@ -150,6 +150,10 @@ function dibujarMarco(g: Graphics, m: Marco) {
     g.roundRect(m.x, m.y, m.ancho, m.alto, radio)
       .fill({ color: 0xffffff, alpha: 0.06 })
       .stroke({ width: 2, color: 0xffffff, alpha: 0.35 });
+  } else if (m.tipo === 'hueco') {
+    g.roundRect(m.x, m.y, m.ancho, m.alto, radio)
+      .fill({ color: 0xffffff, alpha: 0.05 })
+      .stroke({ width: 2, color: 0xffd54a, alpha: 0.55 });
   } else if (m.tipo === 'destino') {
     g.roundRect(m.x, m.y, m.ancho, m.alto, radio)
       .fill({ color: 0xffd54a, alpha: 0.12 })

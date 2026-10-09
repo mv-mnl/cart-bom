@@ -253,3 +253,46 @@ describe('zona de armado', () => {
     expect(r).toEqual({ tipo: 'nada', motivo: 'Espera tu turno.' });
   });
 });
+
+describe('alSoltar: intercambio', () => {
+  const intercambio: Fase = { type: 'intercambio', elegidas: [null, null] };
+
+  it('en tu lugar del intercambio, pasa la carta', () => {
+    const r = alSoltar(
+      estado(mano, intercambio),
+      0,
+      { tipo: 'mano', cardId: 'oros-5' },
+      { tipo: 'pasada' },
+      SIN_SELECCION,
+    );
+    expect(r).toEqual({
+      tipo: 'jugar',
+      accion: { type: 'pasarCarta', player: 0, cardId: 'oros-5' },
+    });
+  });
+
+  it('en el centro ya no la pasa: explica dónde soltarla', () => {
+    const r = alSoltar(
+      estado(mano, intercambio),
+      0,
+      { tipo: 'mano', cardId: 'oros-5' },
+      { tipo: 'centro' },
+      SIN_SELECCION,
+    );
+    expect(r).toEqual({
+      tipo: 'nada',
+      motivo: 'Para pasarla, suéltala en el lugar marcado junto a tu mano.',
+    });
+  });
+
+  it('si ya la elegiste, soltar otra en el lugar no hace nada', () => {
+    const r = alSoltar(
+      estado(mano, { type: 'intercambio', elegidas: ['oros-5', null] }),
+      0,
+      { tipo: 'mano', cardId: 'oros-12' },
+      { tipo: 'pasada' },
+      SIN_SELECCION,
+    );
+    expect(r.tipo).toBe('nada');
+  });
+});
