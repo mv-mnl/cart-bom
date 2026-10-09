@@ -227,7 +227,7 @@ export function alSoltar(
 /** Tocar la carta en juego cuando es para ti: no te sirve, pasa al siguiente. */
 export function alTocarMesa(vista: Vista): Resultado {
   if (obligado(vista)) {
-    return { tipo: 'nada', motivo: 'Esa carta entra en tu juego: tienes que tomarla.' };
+    return { tipo: 'nada', motivo: 'Esa carta entra en tu juego: se agrega sola.' };
   }
   const pasar = vista.acciones.find((a) => a.type === 'pasar');
   return pasar ? { tipo: 'jugar', accion: pasar } : { tipo: 'nada', motivo: null };

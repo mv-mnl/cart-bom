@@ -74,7 +74,7 @@ function mensaje(
         return `${quien} ${carta}. ${nombre(turno)} está pensando…`;
       }
       const puso = fase.origen === 'mazo' ? 'volteó' : 'botó';
-      const pregunta = obligado(vista) ? 'Entra en tu juego: tienes que tomarla.' : '¿Te sirve?';
+      const pregunta = obligado(vista) ? 'Entra en tu juego: va directo.' : '¿Te sirve?';
       if (fase.de === yo) return `Salió ${carta}. ${pregunta}`;
       return `${nombre(fase.de)} ${puso} ${carta}. ${pregunta}`;
     }
@@ -104,11 +104,8 @@ function ayuda(vista: Vista, modo: ModoControl): string | null {
     return 'Toca el mazo o arrastra la de arriba hacia la mesa.';
   }
   if (ofertaMia(vista)) {
-    if (obligado(vista)) {
-      return soloArrastrar
-        ? 'Arrástrala al juego tuyo donde entra.'
-        : 'Arrástrala al juego tuyo donde entra, o usa los botones.';
-    }
+    // La que entra en un juego tuyo se agrega sola: no hay nada que explicar.
+    if (obligado(vista)) return null;
     return soloArrastrar
       ? 'Arrástrala a un juego tuyo o a la zona de armado con las cartas que van; si no te sirve, tócala.'
       : 'Arrástrala a un juego tuyo o a la zona de armado; si no te sirve, tócala o usa el botón.';

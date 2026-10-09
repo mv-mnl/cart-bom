@@ -110,6 +110,12 @@ export function Laboratorio() {
     };
   }, [velocidad]);
 
+  // Las jugadas obligadas no se hacen solas: el escenario muestra la que hizo la IA.
+  useEffect(() => {
+    usePartida.setState({ automaticas: false });
+    return () => usePartida.setState({ automaticas: true });
+  }, []);
+
   useEffect(() => {
     forzarMovimientoReducido(reducido ? true : null);
     return () => forzarMovimientoReducido(null);

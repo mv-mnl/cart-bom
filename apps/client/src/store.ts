@@ -22,7 +22,7 @@ import {
 import type { EstiloBaraja } from './ui/baraja';
 import { SIN_SELECCION, type Seleccion } from './ui/opciones';
 import type { OrdenMano } from './ui/orden';
-import { vistaDe, type Vista } from './vista';
+import { jugadaAutomatica, vistaDe, type Vista } from './vista';
 
 export const HUMANO = 0;
 /**
@@ -30,6 +30,11 @@ export const HUMANO = 0;
  * La animación más larga (la carta del mazo: vuelo, volteo y asentado) dura hasta ~1.04 s.
  */
 const PAUSA_IA_MS = 1200;
+/**
+ * Antes de tomar sola la carta que entra en un juego tuyo: lo que tarda en llegar a la mesa
+ * y un momento para que se vea el "¡Te entra!".
+ */
+export const ESPERA_AUTOMATICA_MS = 1400;
 /** En el intercambio, entre que un rival elige su carta y el siguiente. */
 const PAUSA_INTERCAMBIO_MS = 600;
 /** Antes de que la computadora saque del mazo: lo que se ve antes es la carta yéndose a las muertas. */
@@ -101,6 +106,11 @@ interface Partida {
   readonly enLinea: EnLinea | null;
   /** Por qué se salió de una sala en línea (se muestra en el menú). */
   readonly errorRed: string | null;
+  /**
+   * Hacer solas las jugadas obligadas (tomar la carta que entra en un juego tuyo).
+   * El laboratorio las apaga para que no se crucen con sus escenarios.
+   */
+  readonly automaticas: boolean;
   readonly nombres: readonly string[];
   readonly seleccion: Seleccion;
   /** Cómo se muestra la mano. Es solo de este navegador; no toca el estado del juego. */
@@ -242,6 +252,7 @@ export const usePartida = create<Partida>((set, get) => {
     vista: null,
     enLinea: null,
     errorRed: null,
+    automaticas: true,
     nombres: [],
     seleccion: SIN_SELECCION,
     ordenMano: leerOrden(),
@@ -393,3 +404,20 @@ export const usePartida = create<Partida>((set, get) => {
 if (import.meta.env.DEV) {
   (globalThis as { __PARTIDA__?: unknown }).__PARTIDA__ = usePartida;
 }
+
+let timerAutomatica: ReturnType<typeof setTimeout> | null = null;
+
+/** Cada vista nueva: si te toca una jugada obligada, se hace sola tras una pausa. */
+usePartida.subscribe((s, previo) => {
+  if (s.vista === previo.vista && s.automaticas === previo.automaticas) return;
+  if (timerAutomatica !== null) clearTimeout(timerAutomatica);
+  timerAutomatica = null;
+  const vista = s.vista;
+  const accion = vista && s.automaticas ? jugadaAutomatica(vista) : null;
+  if (!accion) return;
+  timerAutomatica = setTimeout(() => {
+    timerAutomatica = null;
+    // Solo si nada cambió mientras tanto.
+    if (usePartida.getState().vista === vista) usePartida.getState().jugar(accion);
+  }, ESPERA_AUTOMATICA_MS);
+});

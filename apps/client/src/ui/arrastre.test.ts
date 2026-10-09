@@ -145,7 +145,7 @@ describe('alSoltar: carta de la mesa', () => {
   it('si entra en un juego tuyo, tocarla no pasa y explica que hay que tomarla', () => {
     // `estado` pone la escalera de bastos 1-2-3: el 4 de bastos entra.
     const r = alTocarMesa(vistaDe(estado(mano, oferta(c('bastos', 4))), 0));
-    expect(r).toEqual({ tipo: 'nada', motivo: 'Esa carta entra en tu juego: tienes que tomarla.' });
+    expect(r).toEqual({ tipo: 'nada', motivo: 'Esa carta entra en tu juego: se agrega sola.' });
   });
 
   it('tocarla cuando es para otro no hace nada', () => {

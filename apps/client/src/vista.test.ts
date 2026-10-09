@@ -1,7 +1,15 @@
 import { CONFIG_DEFAULT, type ConquianState, type Fase, type Juego } from '@cartas/conquian';
 import type { Card, Palo, Valor } from '@cartas/core';
 import { describe, expect, it } from 'vitest';
-import { bajadasDe, enTurno, obligado, ofertaMia, resultado, vistaDe } from './vista';
+import {
+  bajadasDe,
+  enTurno,
+  jugadaAutomatica,
+  obligado,
+  ofertaMia,
+  resultado,
+  vistaDe,
+} from './vista';
 
 const c = (palo: Palo, valor: Valor): Card => ({ id: `${palo}-${valor}`, palo, valor });
 
@@ -64,5 +72,17 @@ describe('vista del cliente', () => {
       0,
     ).view;
     expect(resultado(fin)).toEqual({ type: 'ganador', ganadores: [1] });
+  });
+});
+
+describe('jugadaAutomatica', () => {
+  it('si la carta entra en un juego tuyo, la agrega a ese juego', () => {
+    const v = vistaDe(estado(oferta(c('bastos', 4), [0, 1])), 0);
+    expect(jugadaAutomatica(v)).toEqual({ type: 'tomar', player: 0, cardIds: [], juegoId: 'j1' });
+  });
+
+  it('nada si no estás obligado o no es tu turno', () => {
+    expect(jugadaAutomatica(vistaDe(estado(oferta(c('oros', 1), [0, 1])), 0))).toBeNull();
+    expect(jugadaAutomatica(vistaDe(estado(oferta(c('bastos', 4), [1, 0])), 0))).toBeNull();
   });
 });

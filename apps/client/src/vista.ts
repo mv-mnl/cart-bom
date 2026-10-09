@@ -42,6 +42,24 @@ export const ofertaMia = ({ view }: Vista): boolean =>
 export const obligado = (vista: Vista): boolean =>
   ofertaMia(vista) && !vista.acciones.some((a) => a.type === 'pasar');
 
+/**
+ * La jugada que se hace sola: si la carta de la mesa entra en un juego tuyo, estás obligado
+ * a tomarla, así que se agrega a ese juego sin que tengas que arrastrarla. Si entra en
+ * varios, va al primero.
+ */
+export function jugadaAutomatica(vista: Vista): ConquianAction | null {
+  if (!obligado(vista)) return null;
+  return (
+    vista.acciones.find(
+      (a) =>
+        a.type === 'tomar' &&
+        a.juegoId !== undefined &&
+        a.cardIds.length === 0 &&
+        a.desmoche === undefined,
+    ) ?? null
+  );
+}
+
 /** Cartas que tiene bajadas `player`. */
 export const bajadasDe = (view: ConquianView, player: number): number =>
   view.jugadores[player]?.juegos.reduce((n, j) => n + j.cartas.length, 0) ?? 0;
