@@ -62,7 +62,7 @@ function sacarDeMano(
 function enTurno(state: ConquianState): number | null {
   const { fase } = state;
   if (fase.type === 'oferta') return fase.cola[0] ?? null;
-  if (fase.type === 'botar') return fase.jugador;
+  if (fase.type === 'botar' || fase.type === 'voltear') return fase.jugador;
   return null;
 }
 
@@ -82,16 +82,21 @@ function revisarGanador(state: ConquianState, player: number): ConquianState {
   return state;
 }
 
-/**
- * El turno va hacia la derecha: `jugador` voltea, se la ofrece primero a él
- * y, si nadie la quiere, voltea el siguiente.
- */
-function voltear(state: ConquianState, jugador: number): ConquianState {
-  const n = state.jugadores.length;
-  const [carta, ...resto] = state.mazo;
-  if (!carta) {
+/** El turno va hacia la derecha: le toca voltear a `jugador`. Sin mazo, es empate. */
+function tocaVoltear(state: ConquianState, jugador: number): ConquianState {
+  if (state.mazo.length === 0) {
     return { ...state, fase: { type: 'terminado', resultado: { type: 'empate' } } };
   }
+  return { ...state, fase: { type: 'voltear', jugador } };
+}
+
+/** Voltea la de arriba del mazo: se le ofrece primero a él y, si nadie la quiere, voltea el siguiente. */
+function voltear(state: ConquianState, player: number): ConquianState {
+  if (state.fase.type !== 'voltear') throw new Error('no es momento de voltear');
+  exigirTurno(state, player);
+  const n = state.jugadores.length;
+  const [carta, ...resto] = state.mazo;
+  if (!carta) throw new Error('no hay mazo');
   return {
     ...state,
     mazo: resto,
@@ -99,9 +104,9 @@ function voltear(state: ConquianState, jugador: number): ConquianState {
       type: 'oferta',
       carta,
       origen: 'mazo',
-      de: jugador,
-      cola: ronda(jugador, n),
-      voltea: (jugador + 1) % n,
+      de: player,
+      cola: ronda(player, n),
+      voltea: (player + 1) % n,
     },
   };
 }
@@ -218,7 +223,7 @@ function pasarCarta(state: ConquianState, player: number, cardId: string): Conqu
     if (!recibida) throw new Error('intercambio inconsistente');
     return { ...jugador, mano: [...jugador.mano.filter((c) => c.id !== elegidas[i]), recibida] };
   });
-  return voltear({ ...state, jugadores }, 0);
+  return tocaVoltear({ ...state, jugadores }, 0);
 }
 
 function pasar(state: ConquianState, player: number): ConquianState {
@@ -228,7 +233,7 @@ function pasar(state: ConquianState, player: number): ConquianState {
   const cola = fase.cola.slice(1);
   if (cola.length > 0) return { ...state, fase: { ...fase, cola } };
   // Nadie la quiso: queda muerta y sigue el turno.
-  return voltear({ ...state, muertas: [...state.muertas, fase.carta] }, fase.voltea);
+  return tocaVoltear({ ...state, muertas: [...state.muertas, fase.carta] }, fase.voltea);
 }
 
 function tomar(state: ConquianState, player: number, jugada: Jugada): ConquianState {
@@ -275,6 +280,8 @@ function apply(state: ConquianState, action: ConquianAction): ConquianState {
   switch (action.type) {
     case 'pasarCarta':
       return pasarCarta(state, action.player, action.cardId);
+    case 'voltear':
+      return voltear(state, action.player);
     case 'pasar':
       return pasar(state, action.player);
     case 'tomar':
@@ -310,6 +317,7 @@ function validActions(state: ConquianState, player: number): ConquianAction[] {
     return jugador.mano.map((c) => ({ type: 'pasarCarta', player, cardId: c.id }));
   }
   if (enTurno(state) !== player) return [];
+  if (fase.type === 'voltear') return [{ type: 'voltear', player }];
 
   const valores = valoresDe(state);
   const acciones: ConquianAction[] = [];
@@ -400,6 +408,7 @@ function faseView(state: ConquianState, player: number): FaseView {
         de: fase.de,
         turno: fase.cola[0] ?? -1,
       };
+    case 'voltear':
     case 'botar':
     case 'terminado':
       return fase;

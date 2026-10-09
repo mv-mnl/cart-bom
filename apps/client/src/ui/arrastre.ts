@@ -88,7 +88,9 @@ export type Arrastrado =
   /** Una carta de un poker propio. */
   | { readonly tipo: 'desmoche'; readonly juegoId: string; readonly cardId: string }
   /** Una carta que ya estaba en la zona de armado. */
-  | { readonly tipo: 'armado'; readonly pieza: Pieza };
+  | { readonly tipo: 'armado'; readonly pieza: Pieza }
+  /** La de arriba del mazo: sacarla es voltearla. */
+  | { readonly tipo: 'mazo' };
 
 /** Dónde se soltó. */
 export type Destino =
@@ -129,6 +131,13 @@ export function alSoltar(
   destino: Destino | null,
   sel: Seleccion,
 ): Resultado {
+  // Sacar la carta del mazo la voltea, se suelte donde se suelte: nunca entra a la mano.
+  if (arrastrado.tipo === 'mazo') {
+    const voltear = conquian.validActions(state, player).find((a) => a.type === 'voltear');
+    return voltear
+      ? { tipo: 'jugar', accion: voltear }
+      : { tipo: 'nada', motivo: 'Espera tu turno para sacar del mazo.' };
+  }
   if (!destino) return { tipo: 'nada', motivo: null };
 
   // Sacar una carta de la zona de armado: soltarla en cualquier otro lado la regresa.

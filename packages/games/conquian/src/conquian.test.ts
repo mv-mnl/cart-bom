@@ -52,7 +52,7 @@ describe('setup', () => {
 });
 
 describe('intercambio', () => {
-  it('cada uno le pasa una carta al de su derecha y luego se voltea para el jugador 0', () => {
+  it('cada uno le pasa una carta al de su derecha y luego le toca voltear al jugador 0', () => {
     let s = conquian.setup(3, 'intercambio');
     const elegidas = s.jugadores.map((j) => j.mano[0]?.id ?? '');
     s = conquian.apply(s, { type: 'pasarCarta', player: 0, cardId: elegidas[0] ?? '' });
@@ -66,7 +66,7 @@ describe('intercambio', () => {
     expect(ids(0)).toContain(elegidas[2]);
     expect(ids(0)).not.toContain(elegidas[0]);
     expect(s.jugadores.every((j) => j.mano.length === 9)).toBe(true);
-    expect(s.fase).toMatchObject({ type: 'oferta', origen: 'mazo', cola: [0, 1, 2] });
+    expect(s.fase).toEqual({ type: 'voltear', jugador: 0 });
   });
 
   it('no se puede elegir dos veces ni una carta ajena', () => {
@@ -166,6 +166,8 @@ describe('pasar', () => {
     s = conquian.apply(s, { type: 'pasar', player: 2 });
     s = conquian.apply(s, { type: 'pasar', player: 0 });
     expect(s.muertas.map((x) => x.id)).toEqual(['espadas-12']);
+    expect(s.fase).toEqual({ type: 'voltear', jugador: 2 });
+    s = conquian.apply(s, { type: 'voltear', player: 2 });
     expect(s.mazo).toHaveLength(1);
     expect(s.fase).toMatchObject({ type: 'oferta', carta: c('copas', 6), cola: [2, 0, 1] });
   });
@@ -185,6 +187,8 @@ describe('pasar', () => {
     s = conquian.apply(s, { type: 'pasar', player: 0 });
     s = conquian.apply(s, { type: 'pasar', player: 1 });
     expect(s.muertas.map((x) => x.id)).toEqual(['oros-1']);
+    expect(s.fase).toEqual({ type: 'voltear', jugador: 3 });
+    s = conquian.apply(s, { type: 'voltear', player: 3 });
     expect(s.fase).toMatchObject({ origen: 'mazo', carta: c('copas', 6), cola: [3, 0, 1, 2] });
   });
 
@@ -518,6 +522,47 @@ describe('view', () => {
   });
 });
 
+describe('voltear', () => {
+  const s0 = () =>
+    estado({
+      manos: [[c('oros', 1)], [c('oros', 2)], [c('oros', 4)]],
+      mazo: [c('copas', 6), c('copas', 7)],
+      fase: { type: 'voltear', jugador: 1 },
+    });
+
+  it('solo puede voltear a quien le toca, y no puede hacer otra cosa', () => {
+    expect(conquian.validActions(s0(), 1)).toEqual([{ type: 'voltear', player: 1 }]);
+    expect(conquian.validActions(s0(), 0)).toEqual([]);
+    expect(() => conquian.apply(s0(), { type: 'voltear', player: 0 })).toThrow(/turno/);
+    expect(() => conquian.apply(s0(), { type: 'pasar', player: 1 })).toThrow();
+  });
+
+  it('saca la de arriba del mazo y se la ofrece primero a él', () => {
+    const s = conquian.apply(s0(), { type: 'voltear', player: 1 });
+    expect(s.mazo.map((x) => x.id)).toEqual(['copas-7']);
+    expect(s.fase).toEqual({
+      type: 'oferta',
+      carta: c('copas', 6),
+      origen: 'mazo',
+      de: 1,
+      cola: [1, 2, 0],
+      voltea: 2,
+    });
+  });
+
+  it('no se puede voltear fuera de su momento', () => {
+    const s = estado({
+      manos: [[c('oros', 1)], [c('oros', 2)]],
+      fase: oferta(c('copas', 4), [0, 1]),
+    });
+    expect(() => conquian.apply(s, { type: 'voltear', player: 0 })).toThrow(/voltear/);
+  });
+
+  it('todos ven a quién le toca voltear', () => {
+    expect(conquian.view(s0(), 0).fase).toEqual({ type: 'voltear', jugador: 1 });
+  });
+});
+
 describe('quién puso la carta en la mesa', () => {
   it('la volteada es del que voltea y lo sigue siendo mientras la pasan', () => {
     let s = estado({
@@ -529,6 +574,7 @@ describe('quién puso la carta en la mesa', () => {
     expect(s.fase).toMatchObject({ de: 1, cola: [2, 0] });
     s = conquian.apply(s, { type: 'pasar', player: 2 });
     s = conquian.apply(s, { type: 'pasar', player: 0 });
+    s = conquian.apply(s, { type: 'voltear', player: 2 });
     expect(s.fase).toMatchObject({ origen: 'mazo', carta: c('copas', 6), de: 2 });
   });
 

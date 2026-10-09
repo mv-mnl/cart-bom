@@ -297,3 +297,25 @@ describe('alSoltar: intercambio', () => {
     expect(r.tipo).toBe('nada');
   });
 });
+
+describe('alSoltar: el mazo', () => {
+  const voltear = (jugador: number): Fase => ({ type: 'voltear', jugador });
+
+  it('sacar la de arriba la voltea, se suelte donde se suelte (aun fuera de toda zona)', () => {
+    for (const destino of [{ tipo: 'centro' } as const, { tipo: 'mano' } as const, null]) {
+      const r = alSoltar(estado(mano, voltear(0)), 0, { tipo: 'mazo' }, destino, SIN_SELECCION);
+      expect(r).toEqual({ tipo: 'jugar', accion: { type: 'voltear', player: 0 } });
+    }
+  });
+
+  it('si no te toca, no saca nada y lo explica', () => {
+    const r = alSoltar(
+      estado(mano, voltear(1)),
+      0,
+      { tipo: 'mazo' },
+      { tipo: 'centro' },
+      SIN_SELECCION,
+    );
+    expect(r).toEqual({ tipo: 'nada', motivo: 'Espera tu turno para sacar del mazo.' });
+  });
+});

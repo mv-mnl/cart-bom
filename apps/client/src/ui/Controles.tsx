@@ -54,15 +54,26 @@ function mensaje(
       return fase.elegidas[HUMANO] === null
         ? `${verbo} la carta que le vas a pasar a ${nombre((HUMANO + 1) % state.jugadores.length)}.`
         : 'Esperando a que los demás elijan…';
+    case 'voltear':
+      return fase.jugador === HUMANO
+        ? 'Te toca: saca una carta del mazo.'
+        : `${nombre(fase.jugador)} va a sacar del mazo…`;
     case 'oferta': {
       const turno = fase.cola[0] ?? -1;
       const carta = conArticulo(fase.carta, estilo);
-      const puso = fase.origen === 'mazo' ? 'volteó' : 'botó';
       if (turno !== HUMANO) {
-        return fase.origen === 'mazo' && fase.de === turno
-          ? `${nombre(turno)} volteó ${carta} y está pensando…`
-          : `${nombre(fase.de)} ${puso} ${carta}. ${nombre(turno)} está pensando…`;
+        if (fase.origen === 'mazo' && fase.de === turno) {
+          return `${nombre(turno)} volteó ${carta} y está pensando…`;
+        }
+        const quien =
+          fase.de === HUMANO
+            ? fase.origen === 'mazo'
+              ? 'Volteaste'
+              : 'Botaste'
+            : `${nombre(fase.de)} ${fase.origen === 'mazo' ? 'volteó' : 'botó'}`;
+        return `${quien} ${carta}. ${nombre(turno)} está pensando…`;
       }
+      const puso = fase.origen === 'mazo' ? 'volteó' : 'botó';
       if (fase.de === HUMANO) return `Salió ${carta}. ¿Te sirve?`;
       return `${nombre(fase.de)} ${puso} ${carta}. ¿Te sirve?`;
     }
@@ -88,6 +99,11 @@ function ayuda(state: ConquianState, modo: ModoControl): string | null {
       ? 'Arrástrala al lugar marcado junto a tu mano.'
       : 'Tócala o arrástrala al lugar marcado junto a tu mano.';
   }
+  if (fase.type === 'voltear' && fase.jugador === HUMANO) {
+    return soloArrastrar
+      ? 'Arrastra la carta de arriba del mazo hacia la mesa.'
+      : 'Toca el mazo o arrastra la de arriba hacia la mesa.';
+  }
   if (fase.type === 'oferta' && fase.cola[0] === HUMANO) {
     return soloArrastrar
       ? 'Arrástrala a un juego tuyo o a la zona de armado con las cartas que van; si no te sirve, a las muertas.'
@@ -106,6 +122,7 @@ function pista(state: ConquianState, cuantas: number): string | null {
   if (fase.type === 'botar' && fase.jugador === HUMANO && cuantas !== 1) {
     return 'Para botar, selecciona una sola carta.';
   }
+  if (fase.type === 'voltear' && fase.jugador === HUMANO) return 'Primero saca una carta del mazo.';
   const miTurno =
     (fase.type === 'oferta' && fase.cola[0] === HUMANO) ||
     (fase.type === 'botar' && fase.jugador === HUMANO);
@@ -127,6 +144,7 @@ export function Controles() {
 
   const { fase } = state;
   const ofertaMia = fase.type === 'oferta' && fase.cola[0] === HUMANO;
+  const meTocaVoltear = fase.type === 'voltear' && fase.jugador === HUMANO;
   const terminado = conquian.result(state) !== null;
   const cuantas = seleccion.cartas.length + (seleccion.desmoche ? 1 : 0);
   const haySeleccion = cuantas > 0;
@@ -167,8 +185,13 @@ export function Controles() {
         )}
         {aviso && <p className="pista">{aviso}</p>}
 
-        {((conBotones && (ofertaMia || haySeleccion)) || terminado) && (
+        {((conBotones && (ofertaMia || meTocaVoltear || haySeleccion)) || terminado) && (
           <div className="botones">
+            {conBotones && meTocaVoltear && (
+              <button onClick={() => jugar({ type: 'voltear', player: HUMANO })}>
+                Sacar del mazo
+              </button>
+            )}
             {conBotones && ofertaMia && (
               <button
                 className={sugeridas.length + conSeleccion.length > 0 ? 'secundario' : ''}

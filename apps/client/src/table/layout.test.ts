@@ -127,8 +127,9 @@ describe('lugares del intercambio: la misma regla para todos', () => {
 });
 
 describe('la carta de la mesa', () => {
-  // Tras el intercambio voltea el 0 (tú) y la carta se te ofrece primero.
-  const ofrecida = pasan(inicio, [0, 1, 2]);
+  // Tras el intercambio te toca voltear (eres el 0) y la carta se te ofrece primero.
+  const tocaVoltear = pasan(inicio, [0, 1, 2]);
+  const ofrecida = conquian.apply(tocaVoltear, { type: 'voltear', player: 0 });
   const carta = (s: ConquianState) => {
     const { fase } = s;
     return fase.type === 'oferta'
@@ -142,11 +143,46 @@ describe('la carta de la mesa', () => {
     expect(c?.toque).toEqual({ tipo: 'mesa' });
   });
 
-  it('se ve en gris y no se toca mientras la decide otro', () => {
+  it('se ve en gris y no se toca mientras la decide otro, y dice a quién se le ofrece', () => {
     const s = conquian.apply(ofrecida, { type: 'pasar', player: 0 });
     const c = carta(s);
     expect(c?.apagada).toBe(true);
     expect(c?.toque).toBeNull();
+    expect(c?.ofrecidaA).toBe(1);
+  });
+
+  it('cuando nadie la quiere, se tira a las muertas', () => {
+    let s = ofrecida;
+    for (const player of [0, 1, 2]) s = conquian.apply(s, { type: 'pasar', player });
+    expect(s.fase.type).toBe('voltear');
+    const muerta = escenaDe(s).cartas.find((c) => c.key === s.muertas.at(-1)?.id);
+    expect(muerta?.gesto).toBe('tirar');
+  });
+});
+
+describe('el mazo', () => {
+  const tocaVoltear = pasan(inicio, [0, 1, 2]);
+  const mazo = (s: ConquianState) => escenaDe(s).cartas.find((c) => c.key === 'mazo');
+
+  it('cuando te toca, se marca y se puede tocar o sacar', () => {
+    expect(mazo(tocaVoltear)?.toque).toEqual({ tipo: 'mazo' });
+    expect(mazo(tocaVoltear)?.pista).toBe(true);
+    expect(escenaDe(tocaVoltear).etiquetas.find((e) => e.key === 'mazo-n')?.texto).toBe('Saca una');
+  });
+
+  it('si le toca a otro, no se puede tocar', () => {
+    let s = conquian.apply(tocaVoltear, { type: 'voltear', player: 0 });
+    for (const player of [0, 1, 2]) s = conquian.apply(s, { type: 'pasar', player });
+    expect(s.fase).toEqual({ type: 'voltear', jugador: 1 });
+    expect(mazo(s)?.toque).toBeNull();
+    expect(mazo(s)?.pista).toBe(false);
+  });
+
+  it('debajo de la de arriba queda el resto de la pila', () => {
+    const cartas = escenaDe(tocaVoltear).cartas;
+    const fondo = cartas.findIndex((c) => c.key === 'mazo-fondo');
+    expect(fondo).toBeGreaterThanOrEqual(0);
+    expect(fondo).toBeLessThan(cartas.findIndex((c) => c.key === 'mazo'));
   });
 });
 

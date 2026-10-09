@@ -3,9 +3,11 @@ import type { Anclas, Escena, Origen, Punto } from '../table/layout';
 import { DORSO } from '../table/texturas';
 import {
   colocarCarta,
+  empujarCarta,
   llevarA,
   moverCarta,
   repartirCarta,
+  tirarCarta,
   vaHacia,
   voltearCarta,
   type Pose,
@@ -47,6 +49,23 @@ let preparacion: Preparacion | null = null;
 export function prepararEscena(modo: Preparacion): void {
   preparacion = modo;
 }
+
+/**
+ * Donde soltaste la carta que sacaste del mazo arrastrándola: de ahí se voltea hacia la
+ * mesa en lugar de salir del mazo. Vale solo un momento, para la jugada que sigue.
+ */
+let salidaMazo: { punto: Punto; hasta: number } | null = null;
+export function sacarDelMazoEn(punto: Punto): void {
+  salidaMazo = { punto, hasta: performance.now() + 500 };
+}
+function tomarSalidaMazo(): Punto | null {
+  const s = salidaMazo;
+  salidaMazo = null;
+  return s && performance.now() <= s.hasta ? s.punto : null;
+}
+
+/** A quién se le ofrecía la carta de la mesa en la escena anterior. */
+const ofrecidas = new WeakMap<Sprite, number>();
 
 const pasadaDe = (origen: Origen | undefined): number | null =>
   origen !== undefined && typeof origen.desde === 'object' && 'pasada' in origen.desde
@@ -113,9 +132,15 @@ export function animarEscena(ctx: ContextoAnimacion): void {
     const destino: Pose = { x: c.x, y: c.y, rotation: c.rotation, escala: c.escala };
     const zIndexFinal = i + 1;
 
+    // Si la carta de la mesa ahora es para otro, se le empuja.
+    const antesPara = ofrecidas.get(sprite);
+    if (c.ofrecidaA === undefined) ofrecidas.delete(sprite);
+    else ofrecidas.set(sprite, c.ofrecidaA);
+
     if (!conocidas.has(c.key)) {
       conocidas.add(c.key);
-      const desde = c.origen ? resolver(c.origen, escena.anclas) : null;
+      const sacada = c.origen?.voltear ? tomarSalidaMazo() : null;
+      const desde = sacada ?? (c.origen ? resolver(c.origen, escena.anclas) : null);
       if (!c.origen || !desde) {
         colocarCarta(sprite, destino);
         return;
@@ -165,8 +190,18 @@ export function animarEscena(ctx: ContextoAnimacion): void {
       }
       return;
     }
+    // La pasaron al siguiente: se le empuja (aunque la mesa se haya reacomodado).
+    const siguiente = c.ofrecidaA === undefined ? undefined : escena.anclas.jugadores[c.ofrecidaA];
+    if (antesPara !== undefined && antesPara !== c.ofrecidaA && siguiente) {
+      if (empujarCarta(sprite, destino, siguiente)) return;
+    }
     if (difiere(sprite, destino) && !vaHacia(sprite, destino)) {
       const textura = ctx.textura(c.textura);
+      // Solo se tira la que estaba en la oferta; si la mesa cambia de tamaño, solo se acomoda.
+      if (c.gesto === 'tirar' && antesPara !== undefined) {
+        tirarCarta(sprite, destino, { zIndexFinal, ...(textura ? { textura } : {}) });
+        return;
+      }
       llevarA(sprite, destino, {
         zIndexFinal,
         velocidad: c.velocidad ?? 1,

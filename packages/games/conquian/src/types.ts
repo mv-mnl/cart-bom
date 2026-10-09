@@ -22,6 +22,8 @@ export interface Jugador {
 export type Fase =
   /** Cada jugador elige una carta para pasarle al de su derecha. */
   | { readonly type: 'intercambio'; readonly elegidas: readonly (string | null)[] }
+  /** Le toca a `jugador` voltear la carta de arriba del mazo. */
+  | { readonly type: 'voltear'; readonly jugador: number }
   /**
    * Una carta en la mesa (volteada del mazo o botada) se ofrece en orden.
    * `cola[0]` es a quien se le ofrece ahora; los demás esperan su turno.
@@ -86,6 +88,8 @@ export type ConquianAction =
       readonly juegoId?: string;
       readonly desmoche?: Desmoche;
     }
+  /** Voltear la carta de arriba del mazo; se le ofrece primero a quien la volteó. */
+  | { readonly type: 'voltear'; readonly player: number }
   | { readonly type: 'pasar'; readonly player: number }
   | { readonly type: 'botar'; readonly player: number; readonly cardId: string };
 
@@ -95,6 +99,7 @@ export type FaseView =
       readonly miCarta: string | null;
       readonly listos: readonly boolean[];
     }
+  | { readonly type: 'voltear'; readonly jugador: number }
   | {
       readonly type: 'oferta';
       readonly carta: Card;

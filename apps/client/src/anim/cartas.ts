@@ -206,6 +206,137 @@ export function moverCarta(
   return asentar(tl, sprite, destino, viaje);
 }
 
+/** La carta está en una animación que no se corta (reparto, intercambio, volteo del mazo). */
+const protegida = (sprite: Sprite) => {
+  const tl = activas.get(sprite);
+  return tl !== undefined && protegidas.has(tl);
+};
+
+/** Qué tanto avanza la carta hacia el siguiente cuando se la pasan (proporción, y tope en px). */
+const EMPUJE = 0.32;
+const EMPUJE_MAX = 110;
+
+/**
+ * La carta de la mesa pasa al siguiente: se desliza hacia él, ladeándose, y vuelve a su
+ * lugar en el centro (aunque se haya movido), donde él la decide. Si se está volteando,
+ * no la interrumpe y devuelve null.
+ */
+export function empujarCarta(
+  sprite: Sprite,
+  lugar: Pose,
+  hacia: { readonly x: number; readonly y: number },
+): gsap.core.Timeline | null {
+  if (protegida(sprite) || movimientoReducido()) return null;
+  const dx = hacia.x - lugar.x;
+  const dy = hacia.y - lugar.y;
+  const distancia = Math.hypot(dx, dy);
+  if (distancia < 1) return null;
+  const avance = Math.min(distancia * EMPUJE, EMPUJE_MAX) / distancia;
+  const lado = dx >= 0 ? 1 : -1;
+  detener(sprite);
+  // Si la mesa se reacomoda mientras tanto, el empujón no se corta: regresa al lugar nuevo.
+  const obj = { ...lugar };
+  seguibles.set(sprite, obj);
+  const tl = timelineSobre(sprite, lugar, {});
+  protegidas.add(tl);
+  return tl
+    .to(
+      sprite,
+      {
+        x: () => obj.x + dx * avance,
+        y: () => obj.y + dy * avance,
+        rotation: () => obj.rotation + 0.14 * lado,
+        duration: 0.22,
+        ease: 'power2.out',
+      },
+      0,
+    )
+    .to(sprite.scale, { x: () => obj.escala * 1.06, y: () => obj.escala * 1.06, duration: 0.22 }, 0)
+    .to(
+      sprite,
+      {
+        x: () => obj.x,
+        y: () => obj.y,
+        rotation: () => obj.rotation,
+        duration: 0.34,
+        ease: 'power2.inOut',
+      },
+      0.3,
+    )
+    .to(
+      sprite.scale,
+      { x: () => obj.escala, y: () => obj.escala, duration: 0.34, ease: 'power2.inOut' },
+      0.3,
+    );
+}
+
+/** Qué tan alto sube la carta que se tira a las muertas (proporción de la distancia). */
+const ARCO_TIRO = 0.45;
+
+/**
+ * Nadie quiso la carta: se tira a las muertas. Sube en arco dando una vuelta completa
+ * y cae en la pila con un rebote. Si se está volteando, termina y luego va.
+ */
+export function tirarCarta(
+  sprite: Sprite,
+  destino: Pose,
+  opciones: OpcionesMovimiento = {},
+): gsap.core.Timeline | null {
+  const distancia = Math.hypot(destino.x - sprite.x, destino.y - sprite.y);
+  if (protegida(sprite) || movimientoReducido() || distancia < DISTANCIA_VUELO) {
+    llevarA(sprite, destino, opciones);
+    return null;
+  }
+  detener(sprite);
+  const desde = { x: sprite.x, y: sprite.y, rotation: sprite.rotation, escala: sprite.scale.x };
+  const cx = (desde.x + destino.x) / 2;
+  const cy = Math.min(desde.y, destino.y) - distancia * ARCO_TIRO;
+  const lado = destino.x >= desde.x ? 1 : -1;
+  const viaje = Math.max(0.45, duracionVuelo(distancia, 0.3));
+  const tl = timelineSobre(sprite, destino, opciones);
+  const avance = { t: 0 };
+  tl.to(
+    avance,
+    {
+      t: 1,
+      duration: viaje,
+      ease: 'power1.inOut',
+      onUpdate: () => {
+        const t = avance.t;
+        const u = 1 - t;
+        sprite.x = u * u * desde.x + 2 * u * t * cx + t * t * destino.x;
+        sprite.y = u * u * desde.y + 2 * u * t * cy + t * t * destino.y;
+      },
+    },
+    0,
+  )
+    .fromTo(
+      sprite,
+      { rotation: desde.rotation },
+      {
+        rotation: destino.rotation + Math.PI * 2 * lado,
+        duration: viaje,
+        ease: 'power1.out',
+        immediateRender: false,
+        onComplete: () => {
+          sprite.rotation = destino.rotation;
+        },
+      },
+      0,
+    )
+    .to(
+      sprite.scale,
+      { x: desde.escala * 1.2, y: desde.escala * 1.2, duration: viaje / 2, ease: 'sine.out' },
+      0,
+    )
+    .to(
+      sprite.scale,
+      { x: destino.escala, y: destino.escala, duration: viaje / 2, ease: 'sine.in' },
+      viaje / 2,
+    );
+  return asentar(tl, sprite, destino, viaje);
+}
+
 /**
  * La carta del mazo: cruza boca abajo como en el reparto y, al llegar, se voltea con un
  * saltito para que se vea qué salió.

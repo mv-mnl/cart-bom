@@ -2,8 +2,8 @@ import { conquian, type ConquianState } from '@cartas/conquian';
 import { Application, extend, useApplication } from '@pixi/react';
 import { Container, Graphics, Sprite, Text, Texture, type FederatedPointerEvent } from 'pixi.js';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { moverCarta, olvidarCarta } from '../anim/cartas';
-import { animarEscena } from '../anim/escena';
+import { colocarCarta, moverCarta, olvidarCarta } from '../anim/cartas';
+import { animarEscena, sacarDelMazoEn } from '../anim/escena';
 import { celebrar } from '../anim/victoria';
 import { HUMANO, usePartida, type ModoControl } from '../store';
 import { alSoltar, reordenar, type Arrastrado } from '../ui/arrastre';
@@ -48,7 +48,7 @@ function esMiTurno(state: ConquianState): boolean {
   const { fase } = state;
   return (
     (fase.type === 'oferta' && fase.cola[0] === HUMANO) ||
-    (fase.type === 'botar' && fase.jugador === HUMANO)
+    ((fase.type === 'botar' || fase.type === 'voltear') && fase.jugador === HUMANO)
   );
 }
 
@@ -62,6 +62,8 @@ function arrastradoDe(toque: Toque): Arrastrado {
       return { tipo: 'desmoche', juegoId: toque.juegoId, cardId: toque.cardId };
     case 'armado':
       return { tipo: 'armado', pieza: toque.pieza };
+    case 'mazo':
+      return { tipo: 'mazo' };
   }
 }
 
@@ -70,6 +72,9 @@ function tocar(toque: Toque) {
   const { modo, toggleCarta, toggleDesmoche, avisar, desarmar } = usePartida.getState();
   // Tocar una carta de la zona de armado la regresa, en cualquier modo.
   if (toque.tipo === 'armado') return desarmar(toque.pieza);
+  // Tocar el mazo cuando te toca voltea la de arriba, en cualquier modo.
+  if (toque.tipo === 'mazo')
+    return usePartida.getState().jugar({ type: 'voltear', player: HUMANO });
   if (!puedeTocar(modo)) {
     if (toque.tipo !== 'mano') avisar('Arrastra la carta a donde la quieras poner.');
     return;
@@ -117,7 +122,8 @@ function soltar(escena: EscenaMesa, toque: Toque, x: number, y: number) {
 function zonasValidas(escena: EscenaMesa, toque: Toque): Set<string> {
   const { state, seleccion } = usePartida.getState();
   const validas = new Set<string>();
-  if (!state) return validas;
+  // La carta del mazo se voltea donde la sueltes: no hay un lugar que marcar.
+  if (!state || toque.tipo === 'mazo') return validas;
   for (const zona of escena.zonas) {
     if (zona.clave === 'mano') continue;
     const r = alSoltar(state, HUMANO, arrastradoDe(toque), zona.destino, seleccion);
@@ -313,6 +319,19 @@ function Escena({ ancho, alto }: { ancho: number; alto: number }) {
       arrastre.current = null;
       setDestacadas(NADA);
       const actual = escenaRef.current;
+      // La sacaste del mazo: el mazo queda en su lugar y la carta se voltea desde donde la soltaste.
+      if (a.movio && a.toque.tipo === 'mazo') {
+        colocarCarta(a.sprite, {
+          x: a.carta.x,
+          y: a.carta.y,
+          rotation: a.carta.rotation,
+          escala: a.carta.escala,
+        });
+        a.sprite.zIndex = a.zIndex;
+        sacarDelMazoEn({ x: e.global.x, y: e.global.y });
+        tocar(a.toque);
+        return;
+      }
       // Vuelve deslizándose a su lugar; si la jugada vale, el nuevo estado la lleva a donde va.
       if (a.movio) {
         const lugar = actual?.cartas.find((c) => c.key === a.carta.key) ?? a.carta;

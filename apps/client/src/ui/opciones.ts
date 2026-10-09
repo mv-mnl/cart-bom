@@ -59,6 +59,8 @@ export function describir(
   switch (accion.type) {
     case 'pasar':
       return { accion, etiqueta: 'Pasar', cartas: [] };
+    case 'voltear':
+      return { accion, etiqueta: 'Sacar del mazo', cartas: [] };
     case 'pasarCarta': {
       const cartas = deMano(accion.cardId);
       const carta = cartas[0];
@@ -120,6 +122,7 @@ export function opcionesSeleccion(
   const acciones = conquian.validActions(state, player).filter((a) => {
     switch (a.type) {
       case 'pasar':
+      case 'voltear':
         return false;
       case 'pasarCarta':
       case 'botar':

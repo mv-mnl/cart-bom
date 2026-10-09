@@ -180,22 +180,39 @@ export const ESCENARIOS: readonly Escenario[] = [
       return { inicio, modo: 'colocar', pasos, semilla };
     },
   },
+  jugada('voltear-tu', 'Turno', 'Tú sacas del mazo', 'tu', (t) => t.accion.type === 'voltear'),
+  jugada(
+    'voltear-rival',
+    'Turno',
+    'Rival saca del mazo',
+    'rival',
+    (t) => t.accion.type === 'voltear',
+  ),
   {
-    id: 'voltear',
+    id: 'pasar-siguiente',
     grupo: 'Turno',
-    nombre: 'Nadie la quiere: a las muertas y se voltea otra',
+    nombre: 'No le sirve: se la pasa al siguiente',
     preparar: (juego, jugadores, semilla) =>
-      buscarJugada(juego, jugadores, semilla, (t) => {
-        const f = t.despues.fase;
-        const a = t.antes.fase;
-        return (
-          t.accion.type === 'pasar' &&
-          f.type === 'oferta' &&
-          f.origen === 'mazo' &&
-          a.type === 'oferta' &&
-          a.carta.id !== f.carta.id
-        );
-      }),
+      buscarJugada(
+        juego,
+        jugadores,
+        semilla,
+        (t) => t.accion.type === 'pasar' && t.despues.fase.type === 'oferta',
+        1,
+      ),
+  },
+  {
+    id: 'muertas',
+    grupo: 'Turno',
+    nombre: 'Nadie la quiere: a las muertas y se saca otra',
+    preparar: (juego, jugadores, semilla) =>
+      buscarJugada(
+        juego,
+        jugadores,
+        semilla,
+        (t) => t.accion.type === 'pasar' && t.despues.fase.type === 'voltear',
+        1,
+      ),
   },
   jugada('pasar', 'Turno', 'Tú pasas', 'tu', (t) => t.accion.type === 'pasar'),
   jugada(

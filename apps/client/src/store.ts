@@ -30,6 +30,8 @@ export const HUMANO = 0;
 const PAUSA_IA_MS = 1200;
 /** En el intercambio, entre que un rival elige su carta y el siguiente. */
 const PAUSA_INTERCAMBIO_MS = 600;
+/** Antes de que la computadora saque del mazo: lo que se ve antes es la carta yéndose a las muertas. */
+const PAUSA_VOLTEAR_MS = 800;
 
 /**
  * Cuánto esperar antes de la siguiente jugada de la computadora, para que se vea la anterior.
@@ -38,6 +40,7 @@ const PAUSA_INTERCAMBIO_MS = 600;
 export function pausaIA(state: ConquianState, anterior: ConquianState | null): number {
   if (state.fase.type === 'intercambio') return PAUSA_INTERCAMBIO_MS;
   if (anterior?.fase.type === 'intercambio') return PAUSA_IA_MS + DURACION_INTERCAMBIO * 1000;
+  if (state.fase.type === 'voltear') return PAUSA_VOLTEAR_MS;
   return PAUSA_IA_MS;
 }
 

@@ -52,6 +52,9 @@ export function jugadaIA(state: ConquianState, player: number): ConquianAction |
     return pasarCarta.find((a) => a.cardId === carta?.id) ?? pasarCarta[0] ?? null;
   }
 
+  const voltear = acciones.find((a) => a.type === 'voltear');
+  if (voltear) return voltear;
+
   // Lo que más cartas baje primero: tomar la carta de la mesa, bajar o agregar.
   // Se cuentan las cartas que salen de la mano o de la mesa; mover una carta
   // desmochada a otro juego sin bajar nada de la mano no le sirve.

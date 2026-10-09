@@ -12,7 +12,9 @@ export type Toque =
   /** Carta de un poker propio: se selecciona o se arrastra para desmocharla. */
   | { readonly tipo: 'desmoche'; readonly juegoId: string; readonly cardId: string }
   /** Carta puesta en la zona de armado: se arrastra fuera para regresarla. */
-  | { readonly tipo: 'armado'; readonly pieza: Pieza };
+  | { readonly tipo: 'armado'; readonly pieza: Pieza }
+  /** La de arriba del mazo cuando te toca voltear: se toca o se saca arrastrándola. */
+  | { readonly tipo: 'mazo' };
 
 /** Una carta en pantalla. `key` es el id de la carta cuando se conoce, para animarla después. */
 export interface SpriteCarta {
@@ -35,6 +37,10 @@ export interface SpriteCarta {
   readonly velocidad?: number;
   /** Es la carta que este jugador eligió para pasar, esperando en su lugar. */
   readonly pasadaDe?: number;
+  /** La carta de la mesa: a quién se le ofrece. Si cambia, se le empuja al siguiente. */
+  readonly ofrecidaA?: number;
+  /** Cómo llega a su lugar si ya estaba en pantalla: `tirar` es la que va a las muertas. */
+  readonly gesto?: 'tirar';
 }
 
 /** Arriba de la carta de la mesa: para ti, o quién la volteó o quién la está decidiendo. */
@@ -159,7 +165,7 @@ const GRIS = 0xbfd8c8;
 /** Quién tiene que actuar ahora, según la vista. */
 export function enTurno(view: ConquianView): number | null {
   if (view.fase.type === 'oferta') return view.fase.turno;
-  if (view.fase.type === 'botar') return view.fase.jugador;
+  if (view.fase.type === 'botar' || view.fase.type === 'voltear') return view.fase.jugador;
   return null;
 }
 
@@ -535,6 +541,22 @@ export function layoutMesa(
     (limiteArriba + h * 0.8 + limiteAbajo - h * 0.75) / 2,
     limiteArriba + h * 0.8,
   );
+  const meToca = view.fase.type === 'voltear' && view.fase.jugador === view.yo;
+  // Debajo de la de arriba se ve el resto del mazo, para que al sacarla quede la pila.
+  if (view.mazo > 1) {
+    cartas.push({
+      key: 'mazo-fondo',
+      textura: DORSO,
+      x: cx - w * 1.5 + w * 0.04,
+      y: cy + w * 0.04,
+      rotation: 0,
+      escala,
+      seleccionada: false,
+      pista: false,
+      alpha: 1,
+      toque: null,
+    });
+  }
   if (view.mazo > 0) {
     cartas.push({
       key: 'mazo',
@@ -544,17 +566,17 @@ export function layoutMesa(
       rotation: 0,
       escala,
       seleccionada: false,
-      pista: false,
+      pista: meToca,
       alpha: 1,
-      toque: null,
+      toque: meToca ? { tipo: 'mazo' } : null,
     });
   }
   etiquetas.push({
     key: 'mazo-n',
-    texto: `Mazo ${view.mazo}`,
+    texto: meToca ? 'Saca una' : `Mazo ${view.mazo}`,
     x: cx - w * 1.5,
     y: cy + h * 0.66,
-    color: BLANCO,
+    color: meToca ? DORADO : BLANCO,
     tamano: Math.max(12, w * 0.19),
   });
 
@@ -572,6 +594,7 @@ export function layoutMesa(
       alpha: 0.55,
       toque: null,
       origen: { desde: 'centro' },
+      gesto: 'tirar',
     });
   }
   etiquetas.push({
@@ -598,6 +621,7 @@ export function layoutMesa(
         pista: paraMi && pistas.has('mesa'),
         alpha: 1,
         apagada: !paraMi,
+        ofrecidaA: view.fase.turno,
         toque: paraMi ? { tipo: 'mesa' } : null,
         // Del mazo llega volteándose; si la botaron, desde quien la botó.
         origen:
