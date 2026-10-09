@@ -1,5 +1,5 @@
 import type { Card } from '@cartas/core';
-import { estiloDe, usePartida, type ModoControl } from '../store';
+import { ayudasDe, estiloDe, usePartida, type ModoControl } from '../store';
 import { obligado, ofertaMia, resultado, type Vista } from '../vista';
 import { conArticulo, datosPalo, etiquetaCorta, nombreCarta, type EstiloBaraja } from './baraja';
 import { opcionesSeleccion, sugerencias, type Opcion } from './opciones';
@@ -135,7 +135,7 @@ export function Controles() {
   const nombres = usePartida((s) => s.nombres);
   const seleccion = usePartida((s) => s.seleccion);
   const avisoArrastre = usePartida((s) => s.aviso);
-  const ayudas = usePartida((s) => s.ayudas);
+  const ayudas = usePartida(ayudasDe);
   const modo = usePartida((s) => s.modo);
   const estilo = usePartida(estiloDe);
   const { limpiarSeleccion, nueva, jugar } = usePartida.getState();

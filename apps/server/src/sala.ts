@@ -54,6 +54,7 @@ export class SalaConquian {
     readonly codigo: string,
     private cartas: CartasSala,
     private baraja: BarajaSala,
+    private ayudas = true,
   ) {
     this.juego = createConquian(configPara(cartas, baraja));
   }
@@ -144,14 +145,17 @@ export class SalaConquian {
    * El anfitrión cambia con qué se juega: antes de empezar o al terminar una partida.
    * La partida en curso nunca cambia; lo nuevo vale desde el siguiente reparto.
    */
-  configurar(id: string, cartas: unknown, baraja: unknown): void {
+  configurar(id: string, cartas: unknown, baraja: unknown, ayudas: unknown): void {
     this.exigirAnfitrion(id, 'Solo quien creó la sala cambia el juego.');
     if (this.enJuego && !this.terminada) {
       throw new Rechazo('El juego se cambia entre partidas.');
     }
-    if (!esCartasSala(cartas) || !esBarajaSala(baraja)) throw new Rechazo('Juego inválido.');
+    if (!esCartasSala(cartas) || !esBarajaSala(baraja) || typeof ayudas !== 'boolean') {
+      throw new Rechazo('Juego inválido.');
+    }
     this.cartas = cartas;
     this.baraja = baraja;
+    this.ayudas = ayudas;
     this.juego = createConquian(configPara(cartas, baraja));
   }
 
@@ -216,6 +220,7 @@ export class SalaConquian {
       terminada: this.terminada,
       cartas: this.cartas,
       baraja: this.baraja,
+      ayudas: this.ayudas,
       minJugadores: MIN_JUGADORES,
       maxJugadores: MAX_JUGADORES,
     };

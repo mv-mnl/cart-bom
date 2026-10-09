@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { usePartida } from '../store';
+import { ayudasDe, usePartida } from '../store';
 import { crearSala, nombresDe, unirseSala } from './enLinea';
 
 /** Espera a que el store cumpla `cumple` (los mensajes llegan por la red). */
@@ -35,6 +35,25 @@ describe('en línea contra el servidor real', () => {
     await hasta(() => estado().vista?.jugada?.player === 0);
     // La jugada de la computadora llega por el servidor y pasa por la cola.
     await hasta(() => estado().vista?.jugada?.player === 1);
+  });
+
+  it('las ayudas son las de la sala: el anfitrión las cambia y valen para todos', async () => {
+    usePartida.setState({ ayudas: true });
+    await crearSala('Ana');
+    await hasta(() => estado().enLinea?.sala != null);
+    expect(ayudasDe(estado())).toBe(true);
+    const sala = estado().enLinea?.sala;
+    if (!sala) throw new Error('sin sala');
+    estado().enLinea?.enviar({
+      type: 'configurar',
+      cartas: sala.cartas,
+      baraja: sala.baraja,
+      ayudas: false,
+    });
+    await hasta(() => estado().enLinea?.sala?.ayudas === false);
+    // Aunque tu preferencia diga que sí, en la sala manda la de la sala.
+    expect(estado().ayudas).toBe(true);
+    expect(ayudasDe(estado())).toBe(false);
   });
 
   it('una jugada que el servidor rechaza se explica', async () => {
@@ -82,6 +101,7 @@ describe('nombresDe', () => {
         terminada: false,
         cartas: 'completa',
         baraja: 'espanola',
+        ayudas: true,
         minJugadores: 2,
         maxJugadores: 4,
       }),

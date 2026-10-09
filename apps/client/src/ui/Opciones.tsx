@@ -123,6 +123,7 @@ export function SelectorCartas() {
 export function BotonOpciones() {
   const [abierto, setAbierto] = useState(false);
   const estilo = usePartida(estiloDe);
+  const enLinea = usePartida((s) => s.enLinea !== null);
   const ref = useRef<HTMLDivElement>(null);
 
   // Se cierra al tocar fuera del panel.
@@ -149,6 +150,7 @@ export function BotonOpciones() {
             {nombreBaraja(estilo)}, la de esta partida. Se cambia al terminar.
           </p>
           <InterruptorAyudas />
+          {enLinea && <p className="nota-opciones">En línea las ayudas son iguales para todos.</p>}
         </div>
       )}
     </div>

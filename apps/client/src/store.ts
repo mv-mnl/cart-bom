@@ -83,6 +83,10 @@ export function conquianPara(cartas: CartasPartida, baraja: EstiloBaraja) {
 export const estiloDe = (s: Pick<Partida, 'vista' | 'baraja'>): EstiloBaraja =>
   s.vista?.view.config.estilo ?? s.baraja;
 
+/** Ayudas que se muestran: en línea, las de la sala (iguales para todos); si no, las tuyas. */
+export const ayudasDe = (s: Pick<Partida, 'enLinea' | 'ayudas'>): boolean =>
+  s.enLinea?.sala?.ayudas ?? s.ayudas;
+
 /** Pone en la mesa un estado de la partida local y la vista del humano. */
 export function enLocal(
   local: ConquianState | null,

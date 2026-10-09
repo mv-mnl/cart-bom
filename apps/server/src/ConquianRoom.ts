@@ -45,7 +45,8 @@ export class ConquianRoom extends Room {
     this.roomId = nuevoCodigo();
     const cartas = esCartasSala(opciones.cartas) ? opciones.cartas : 'completa';
     const baraja = esBarajaSala(opciones.baraja) ? opciones.baraja : 'espanola';
-    this.sala = new SalaConquian(this.roomId, cartas, baraja);
+    const ayudas = typeof opciones.ayudas === 'boolean' ? opciones.ayudas : true;
+    this.sala = new SalaConquian(this.roomId, cartas, baraja, ayudas);
 
     this.onMessage('jugar', (client, msg: { accion?: unknown }) =>
       this.intentar(client, () => {
@@ -62,9 +63,10 @@ export class ConquianRoom extends Room {
         this.difundir(null);
       }),
     );
-    this.onMessage('configurar', (client, msg: { cartas?: unknown; baraja?: unknown }) =>
+    type Configurar = { cartas?: unknown; baraja?: unknown; ayudas?: unknown };
+    this.onMessage('configurar', (client, msg: Configurar) =>
       this.intentar(client, () => {
-        this.sala.configurar(client.sessionId, msg?.cartas, msg?.baraja);
+        this.sala.configurar(client.sessionId, msg?.cartas, msg?.baraja, msg?.ayudas);
         this.difundirSala();
       }),
     );

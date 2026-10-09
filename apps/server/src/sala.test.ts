@@ -70,10 +70,17 @@ describe('sala de espera', () => {
     const sala = nueva();
     sala.sentar('ana', 'Ana');
     sala.sentar('beto', 'Beto');
-    expect(sala.sala('beto')).toMatchObject({ cartas: 'cuarenta', baraja: 'espanola' });
-    expect(() => sala.configurar('beto', 'completa', 'americana')).toThrow('Solo quien creó');
-    expect(() => sala.configurar('ana', 'todas', 'americana')).toThrow('Juego inválido');
-    sala.configurar('ana', 'completa', 'americana');
+    expect(sala.sala('beto')).toMatchObject({
+      cartas: 'cuarenta',
+      baraja: 'espanola',
+      ayudas: true,
+    });
+    expect(() => sala.configurar('ana', 'completa', 'americana', 'no')).toThrow('Juego inválido');
+    sala.configurar('ana', 'cuarenta', 'espanola', false);
+    expect(sala.sala('beto').ayudas).toBe(false);
+    expect(() => sala.configurar('beto', 'completa', 'americana', true)).toThrow('Solo quien creó');
+    expect(() => sala.configurar('ana', 'todas', 'americana', true)).toThrow('Juego inválido');
+    sala.configurar('ana', 'completa', 'americana', true);
     expect(sala.sala('beto')).toMatchObject({ cartas: 'completa', baraja: 'americana' });
     sala.empezar('ana', 0, 's');
     const vista = sala.vista('beto', null);
@@ -175,7 +182,7 @@ describe('partida', () => {
   it('revancha solo al terminar, la empieza el anfitrión, con los mismos asientos', () => {
     const sala = enJuego(2);
     expect(() => sala.revancha('ana', 'otra')).toThrow('no ha terminado');
-    expect(() => sala.configurar('ana', 'completa', 'americana')).toThrow('entre partidas');
+    expect(() => sala.configurar('ana', 'completa', 'americana', true)).toThrow('entre partidas');
     // Beto se va (lo juega la computadora) y Ana pasa siempre que puede.
     sala.quitar('beto');
     for (let i = 0; i < 2000 && !sala.terminada; i++) {
@@ -189,7 +196,7 @@ describe('partida', () => {
     expect(sala.terminada).toBe(true);
     expect(sala.sala('ana').terminada).toBe(true);
     // Entre partidas el anfitrión cambia el juego; vale desde la revancha.
-    sala.configurar('ana', 'completa', 'americana');
+    sala.configurar('ana', 'completa', 'americana', true);
     expect(sala.sala('ana')).toMatchObject({ cartas: 'completa', baraja: 'americana' });
     sala.revancha('ana', 'otra');
     expect(sala.vista('ana', null)?.view.config.estilo).toBe('americana');

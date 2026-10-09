@@ -87,6 +87,7 @@ export interface OpcionesCrear {
   readonly nombre: string;
   readonly cartas: CartasSala;
   readonly baraja: BarajaSala;
+  readonly ayudas: boolean;
 }
 
 /** Lo que manda quien se une con el código. */
@@ -109,6 +110,8 @@ export interface Sala {
   /** Con qué se juega la próxima partida (o la actual). Solo el anfitrión lo cambia. */
   readonly cartas: CartasSala;
   readonly baraja: BarajaSala;
+  /** Sugerencias y explicaciones: iguales para todos los de la sala. */
+  readonly ayudas: boolean;
   readonly minJugadores: number;
   readonly maxJugadores: number;
 }
@@ -121,7 +124,12 @@ export type MensajeCliente<Action> =
   /** El anfitrión empieza; los asientos que falten los juega la computadora. */
   | { readonly type: 'empezar'; readonly compus: number }
   /** El anfitrión cambia el juego, antes de empezar o entre partidas. */
-  | { readonly type: 'configurar'; readonly cartas: CartasSala; readonly baraja: BarajaSala }
+  | {
+      readonly type: 'configurar';
+      readonly cartas: CartasSala;
+      readonly baraja: BarajaSala;
+      readonly ayudas: boolean;
+    }
   /** El anfitrión empieza otra partida con los mismos asientos, cuando terminó la anterior. */
   | { readonly type: 'revancha' };
 

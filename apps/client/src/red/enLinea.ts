@@ -175,8 +175,8 @@ async function entrar(conectar: (c: Client) => Promise<Room>): Promise<void> {
 
 /** Crea una sala nueva con las cartas y la baraja elegidas en el menú. */
 export function crearSala(nombre: string): Promise<void> {
-  const { cartas, baraja } = usePartida.getState();
-  return entrar((c) => c.create(NOMBRE_SALA.conquian, { nombre, cartas, baraja }));
+  const { cartas, baraja, ayudas } = usePartida.getState();
+  return entrar((c) => c.create(NOMBRE_SALA.conquian, { nombre, cartas, baraja, ayudas }));
 }
 
 /** Entra a una sala con su código. */

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { colocarCarta, moverCarta, olvidarCarta } from '../anim/cartas';
 import { animarEscena, sacarDelMazoEn } from '../anim/escena';
 import { celebrar } from '../anim/victoria';
-import { estiloDe, usePartida, type ModoControl } from '../store';
+import { ayudasDe, estiloDe, usePartida, type ModoControl } from '../store';
 import { alSoltar, alTocarMesa, reordenar, type Arrastrado } from '../ui/arrastre';
 import { resumenFinal } from '../ui/final';
 import { sugerencias } from '../ui/opciones';
@@ -202,7 +202,7 @@ function Escena({ ancho, alto }: { ancho: number; alto: number }) {
   const ordenMano = usePartida((s) => s.ordenMano);
   const ordenManual = usePartida((s) => s.ordenManual);
   const modo = usePartida((s) => s.modo);
-  const ayudas = usePartida((s) => s.ayudas);
+  const ayudas = usePartida(ayudasDe);
   const armado = usePartida((s) => s.armado);
   // El dibujo es el de la partida: una de 48 nunca se ve americana, ni al revés.
   const baraja = usePartida(estiloDe);
