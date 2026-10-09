@@ -14,6 +14,7 @@
     "@cartas/conquian": "workspace:*",
     "@cartas/core": "workspace:*",
     "@cartas/shared": "workspace:*",
+    "@colyseus/sdk": "0.18.5",
     "@pixi/react": "8.0.5",
     "gsap": "3.15.0",
     "howler": "2.2.4",

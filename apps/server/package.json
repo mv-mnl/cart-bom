@@ -1,0 +1,23 @@
+{
+  "name": "@cartas/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@cartas/conquian": "workspace:*",
+    "@cartas/core": "workspace:*",
+    "@cartas/shared": "workspace:*",
+    "@colyseus/core": "0.18.18",
+    "@colyseus/schema": "5.0.36",
+    "@colyseus/ws-transport": "0.18.4"
+  },
+  "devDependencies": {
+    "@colyseus/sdk": "0.18.5",
+    "tsx": "4.23.15"
+  }
+}

@@ -2,3 +2,6 @@ packages:
   - packages/*
   - packages/games/*
   - apps/*
+allowBuilds:
+  esbuild: false
+  msgpackr-extract: false

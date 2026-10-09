@@ -1,6 +1,6 @@
 import { VALORES_52, createDeck, createRng, type Card, type Palo, type Valor } from '@cartas/core';
 import { describe, expect, it } from 'vitest';
-import { CONFIG_DEFAULT, conquian, createConquian, obligadoATomar } from './conquian';
+import { CONFIG_DEFAULT, configPara, conquian, createConquian, obligadoATomar } from './conquian';
 import type { ConquianState, Fase, Juego } from './types';
 
 const c = (palo: Palo, valor: Valor): Card => ({ id: `${palo}-${valor}`, palo, valor });
@@ -713,5 +713,18 @@ describe('baraja americana completa (52)', () => {
         expect(total).toBe(52);
       }
     }
+  });
+});
+
+describe('configPara', () => {
+  it('completa: 52 con la americana, 48 con la española; cuarenta: sin 8, 9 ni 10', () => {
+    const cartas = (c: Parameters<typeof configPara>[0], b: Parameters<typeof configPara>[1]) =>
+      createConquian(configPara(c, b)).setup(2, 'x');
+    const total = (s: ReturnType<typeof cartas>) =>
+      s.mazo.length + s.jugadores.reduce((n, j) => n + j.mano.length, 0);
+    expect(total(cartas('completa', 'americana'))).toBe(52);
+    expect(total(cartas('completa', 'espanola'))).toBe(48);
+    expect(total(cartas('cuarenta', 'americana'))).toBe(40);
+    expect(configPara('cuarenta', 'espanola').cartasPorJugador).toBe(9);
   });
 });

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { juegos } from '../juegos';
 import { usePartida } from '../store';
+import { EnLineaMenu } from './EnLineaMenu';
 import { InterruptorAyudas } from './InterruptorAyudas';
 import { SelectorBaraja, SelectorCartas, SelectorModo } from './Opciones';
 
@@ -38,6 +39,7 @@ export function Menu() {
               );
             })}
           </div>
+          <EnLineaMenu />
         </>
       )}
       <div className="ajustes-menu">

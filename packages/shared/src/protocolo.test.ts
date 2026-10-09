@@ -1,6 +1,6 @@
 import type { CardGame } from '@cartas/core';
 import { describe, expect, it } from 'vitest';
-import { instantanea, jugadaPublica } from './protocolo';
+import { igualJSON, instantanea, jugadaPublica } from './protocolo';
 
 /** Juego mínimo: cada quien tiene una carta secreta y puede pasarla al otro. */
 interface Estado {
@@ -54,5 +54,23 @@ describe('jugadaPublica', () => {
   it('se queda solo con el tipo y quién la hizo', () => {
     const botar = { type: 'botar', player: 2, cardId: 'oros-1' };
     expect(jugadaPublica(botar)).toEqual({ type: 'botar', player: 2 });
+  });
+});
+
+describe('igualJSON', () => {
+  it('compara objetos sin importar el orden de las claves', () => {
+    expect(igualJSON({ type: 'a', ids: ['x', 'y'] }, { ids: ['x', 'y'], type: 'a' })).toBe(true);
+  });
+
+  it('una clave sin valor es como si no estuviera', () => {
+    expect(igualJSON({ type: 'tomar', juegoId: undefined }, { type: 'tomar' })).toBe(true);
+  });
+
+  it('distingue valores, orden de arreglos y tipos', () => {
+    expect(igualJSON({ ids: ['x', 'y'] }, { ids: ['y', 'x'] })).toBe(false);
+    expect(igualJSON({ n: 1 }, { n: '1' })).toBe(false);
+    expect(igualJSON([1], { 0: 1 })).toBe(false);
+    expect(igualJSON({ a: 1 }, { a: 1, b: 2 })).toBe(false);
+    expect(igualJSON(null, {})).toBe(false);
   });
 });

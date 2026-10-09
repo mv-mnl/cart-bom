@@ -4,6 +4,9 @@
   --dorado: #ffd54a;
   --texto: #f2f2f2;
   --aviso: #ffb4a8;
+  --naranja: #ffad1f;
+  --naranja-claro: #ffc95a;
+  --naranja-sombra: #b25e00;
   color-scheme: dark;
   font-family: system-ui, sans-serif;
 }
@@ -238,9 +241,6 @@ button.boton-menu {
 
 /* Panel tipo juego: recuadro con borde grueso y botones con relieve. */
 .panel-orden {
-  --naranja: #ffad1f;
-  --naranja-claro: #ffc95a;
-  --naranja-sombra: #b25e00;
   background: linear-gradient(#123f2a, #0b2e1e);
   border: 3px solid #2f6b4c;
   border-radius: 14px;
@@ -470,9 +470,6 @@ button.segmento[aria-checked='true'] {
 }
 
 .panel-final {
-  --naranja: #ffad1f;
-  --naranja-claro: #ffc95a;
-  --naranja-sombra: #b25e00;
   pointer-events: auto;
   width: min(26rem, 100%);
   max-height: 68vh;
@@ -729,4 +726,205 @@ button.boton-lab {
   margin: 0.25rem 0 0;
   font-size: 0.75rem;
   opacity: 0.6;
+}
+
+/* ---------- en línea ---------- */
+
+.menu {
+  overflow-y: auto;
+}
+
+.en-linea {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.en-linea p {
+  margin: 0.5rem 0 0;
+}
+
+.unirse {
+  display: flex;
+  gap: 0.5rem;
+}
+
+input.campo {
+  font: inherit;
+  padding: 0.55rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.35);
+  background: rgb(0 0 0 / 0.2);
+  color: var(--texto);
+  text-align: center;
+  width: 12rem;
+  user-select: text;
+}
+
+input.campo.codigo {
+  width: 7rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+/* ---------- sala de espera ---------- */
+
+.pantalla-sala {
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+  padding: 1rem;
+}
+
+.panel-sala {
+  width: min(24rem, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.1rem 1.1rem 1.2rem;
+  background: linear-gradient(#154a31, #0b2e1e);
+  border: 3px solid #2f6b4c;
+  border-radius: 18px;
+  box-shadow:
+    inset 0 0 0 2px rgb(0 0 0 / 0.35),
+    0 10px 30px rgb(0 0 0 / 0.45);
+}
+
+.cabeza-sala {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.rotulo-sala {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.codigo-sala {
+  font-size: 2.6rem;
+  font-weight: 800;
+  letter-spacing: 0.25em;
+  /* El espaciado de letras deja aire a la derecha: se compensa para que quede centrado. */
+  margin-right: -0.25em;
+  color: var(--dorado);
+  user-select: text;
+  text-shadow: 0 2px 0 rgb(0 0 0 / 0.35);
+}
+
+button.copiar {
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
+}
+
+.lugares-sala h2 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  display: flex;
+  justify-content: space-between;
+}
+
+.lugares-sala .cuenta {
+  opacity: 0.7;
+}
+
+.lugares {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.lugar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 12px;
+  background: rgb(0 0 0 / 0.22);
+  min-height: 2.8rem;
+}
+
+.lugar.tu {
+  outline: 2px solid var(--dorado);
+}
+
+.lugar.libre {
+  background: transparent;
+  outline: 2px dashed rgb(255 255 255 / 0.18);
+  opacity: 0.6;
+  font-style: italic;
+}
+
+.lugar .avatar {
+  flex: none;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  background: var(--naranja);
+  color: #3d1f00;
+}
+
+.lugar.compu .avatar {
+  background: rgb(255 255 255 / 0.12);
+}
+
+.lugar.libre .avatar {
+  background: transparent;
+  outline: 2px dashed rgb(255 255 255 / 0.25);
+}
+
+.nombre-lugar {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font-weight: 600;
+}
+
+.lugar .etiqueta {
+  flex: none;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.12);
+}
+
+.fila-compus {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  font-weight: 600;
+}
+
+/* En la sala el botón no se estira como en los paneles: ocupa el ancho, con su alto. */
+button.boton-juego.empezar {
+  flex: none;
+  padding: 0.8rem 1rem;
+  font-size: 1.1rem;
+}
+
+.esperando {
+  margin: 0;
+  text-align: center;
+  opacity: 0.8;
 }

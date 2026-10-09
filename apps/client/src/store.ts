@@ -1,5 +1,5 @@
-import { VALORES_40, VALORES_48, VALORES_52 } from '@cartas/core';
 import {
+  configPara,
   conquian,
   createConquian,
   jugadaIA,
@@ -7,6 +7,7 @@ import {
   type ConquianState,
   type Desmoche,
 } from '@cartas/conquian';
+import type { MensajeCliente, Sala } from '@cartas/shared';
 import { create } from 'zustand';
 import { DURACION_INTERCAMBIO } from './anim/tiempos';
 import {
@@ -34,11 +35,17 @@ const PAUSA_INTERCAMBIO_MS = 600;
 /** Antes de que la computadora saque del mazo: lo que se ve antes es la carta yéndose a las muertas. */
 const PAUSA_VOLTEAR_MS = 800;
 
+/** Basta con saber la fase: sirve igual con el estado completo que con una vista. */
+interface ConFase {
+  readonly fase: { readonly type: string };
+}
+
 /**
- * Cuánto esperar antes de la siguiente jugada de la computadora, para que se vea la anterior.
- * Al terminar el intercambio espera a que cada quien vea la carta que recibió.
+ * Cuánto esperar antes de la siguiente jugada de la computadora (o de un rival en línea),
+ * para que se vea la anterior. Al terminar el intercambio espera a que cada quien vea la
+ * carta que recibió.
  */
-export function pausaIA(state: ConquianState, anterior: ConquianState | null): number {
+export function pausaIA(state: ConFase, anterior: ConFase | null): number {
   if (state.fase.type === 'intercambio') return PAUSA_INTERCAMBIO_MS;
   if (anterior?.fase.type === 'intercambio') return PAUSA_IA_MS + DURACION_INTERCAMBIO * 1000;
   if (state.fase.type === 'voltear') return PAUSA_VOLTEAR_MS;
@@ -59,15 +66,9 @@ export type ModoControl = 'botones' | 'arrastrar' | 'mixto';
 /** `completa`: americana de 52 o española de 48 (según la baraja). `cuarenta`: sin 8, 9 ni 10. */
 export type CartasPartida = 'completa' | 'cuarenta';
 
-/** Valores de la baraja para una partida nueva. */
-function valoresPara(cartas: CartasPartida, baraja: EstiloBaraja) {
-  if (cartas === 'cuarenta') return VALORES_40;
-  return baraja === 'americana' ? VALORES_52 : VALORES_48;
-}
-
 /** El Conquián con las cartas elegidas. Las cartas se fijan al empezar la partida. */
 export function conquianPara(cartas: CartasPartida, baraja: EstiloBaraja) {
-  return createConquian({ cartasPorJugador: 9, baraja: { valores: valoresPara(cartas, baraja) } });
+  return createConquian(configPara(cartas, baraja));
 }
 
 /** Pone en la mesa un estado de la partida local y la vista del humano. */
@@ -78,6 +79,16 @@ export function enLocal(
   return { local, vista: local && vistaDe(local, HUMANO, jugada) };
 }
 
+/** La conexión con la sala cuando se juega en línea. */
+export interface EnLinea {
+  /** `null` hasta que llega la primera noticia de la sala. */
+  readonly sala: Sala | null;
+  /** Se cayó la conexión y se está intentando volver. */
+  readonly reconectando: boolean;
+  readonly enviar: (mensaje: MensajeCliente<ConquianAction>) => void;
+  readonly cerrar: () => void;
+}
+
 interface Partida {
   /**
    * La partida completa, solo cuando se juega contra la computadora (o en el laboratorio).
@@ -86,6 +97,10 @@ interface Partida {
   readonly local: ConquianState | null;
   /** Lo que ve el jugador de este navegador y lo que puede hacer. La mesa sale de aquí. */
   readonly vista: Vista | null;
+  /** Jugando en línea: las jugadas van al servidor y las vistas llegan de él. */
+  readonly enLinea: EnLinea | null;
+  /** Por qué se salió de una sala en línea (se muestra en el menú). */
+  readonly errorRed: string | null;
   readonly nombres: readonly string[];
   readonly seleccion: Seleccion;
   /** Cómo se muestra la mano. Es solo de este navegador; no toca el estado del juego. */
@@ -127,6 +142,8 @@ interface Partida {
   desarmar(pieza: Pieza): void;
   /** Jugada del humano; viene de las opciones, que salen de validActions. */
   jugar(accion: ConquianAction): void;
+  /** Muestra una vista nueva que llegó del servidor. */
+  mostrar(vista: Vista): void;
 }
 
 let timerIA: ReturnType<typeof setTimeout> | null = null;
@@ -185,33 +202,46 @@ export const usePartida = create<Partida>((set, get) => {
     timerIA = setTimeout(() => {
       const actual = get().local;
       const accion = actual && jugadaIA(actual, bot);
-      if (accion) aplicar(accion, false);
+      if (accion) aplicar(accion);
     }, pausa);
   };
 
-  const aplicar = (accion: ConquianAction, delHumano: boolean) => {
-    const { local: state, seleccion } = get();
-    if (!state) return;
-    const nuevo = conquian.apply(state, accion);
-    const mano = nuevo.jugadores[HUMANO]?.mano ?? [];
-    set({
-      ...enLocal(nuevo, accion),
+  /**
+   * Cambia lo que se ve de la partida. Si jugó otro, se conserva lo que el humano tenía
+   * seleccionado de su mano; si jugó él, se limpia.
+   */
+  const cambiosPorVista = (vista: Vista): Partial<Partida> => {
+    const delHumano = vista.jugada === null || vista.jugada.player === vista.view.yo;
+    const { seleccion } = get();
+    return {
+      vista,
       aviso: null,
       armado: ARMADO_VACIO,
-      // Si jugó la computadora, se conserva lo que el humano tenía seleccionado de su mano.
+      // Sin jugada es un reparto nuevo (la revancha): se quita la pantalla final.
+      ...(vista.jugada === null ? { verMesa: false } : {}),
       seleccion: delHumano
         ? SIN_SELECCION
         : {
-            cartas: seleccion.cartas.filter((id) => mano.some((c) => c.id === id)),
+            cartas: seleccion.cartas.filter((id) => vista.view.mano.some((c) => c.id === id)),
             desmoche: null,
           },
-    });
+    };
+  };
+
+  const aplicar = (accion: ConquianAction) => {
+    const state = get().local;
+    if (!state) return;
+    const nuevo = conquian.apply(state, accion);
+    const cambios = enLocal(nuevo, accion);
+    set({ ...(cambios.vista && cambiosPorVista(cambios.vista)), local: nuevo });
     programarIA(state);
   };
 
   return {
     local: null,
     vista: null,
+    enLinea: null,
+    errorRed: null,
     nombres: [],
     seleccion: SIN_SELECCION,
     ordenMano: leerOrden(),
@@ -253,7 +283,7 @@ export const usePartida = create<Partida>((set, get) => {
       const nuevo = agregarPieza(armado, pieza);
       const accion = jugadaDelArmado(vista, nuevo);
       if (accion) {
-        aplicar(accion, true);
+        get().jugar(accion);
         return;
       }
       set({
@@ -286,6 +316,9 @@ export const usePartida = create<Partida>((set, get) => {
     },
 
     nueva(jugadores) {
+      // En línea, otra partida es una revancha en la misma sala.
+      const { enLinea } = get();
+      if (enLinea) return enLinea.enviar({ type: 'revancha' });
       cancelarIA();
       const seed = crypto.randomUUID();
       set({
@@ -302,8 +335,10 @@ export const usePartida = create<Partida>((set, get) => {
 
     salir() {
       cancelarIA();
+      get().enLinea?.cerrar();
       set({
         ...enLocal(null),
+        enLinea: null,
         seleccion: SIN_SELECCION,
         armado: ARMADO_VACIO,
         aviso: null,
@@ -343,7 +378,13 @@ export const usePartida = create<Partida>((set, get) => {
     },
 
     jugar(accion) {
-      aplicar(accion, true);
+      const { enLinea } = get();
+      if (enLinea) enLinea.enviar({ type: 'jugar', accion });
+      else aplicar(accion);
+    },
+
+    mostrar(vista) {
+      set(cambiosPorVista(vista));
     },
   };
 });

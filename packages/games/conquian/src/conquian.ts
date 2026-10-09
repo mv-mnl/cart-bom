@@ -1,5 +1,7 @@
 import {
   VALORES_40,
+  VALORES_48,
+  VALORES_52,
   barajar,
   createDeck,
   createRng,
@@ -21,6 +23,19 @@ import type {
 } from './types';
 
 export const CONFIG_DEFAULT: ConquianConfig = { cartasPorJugador: 9, baraja: {} };
+
+/**
+ * Las reglas de una partida según lo que se eligió: la baraja completa es la americana de 52
+ * o la española de 48; `cuarenta` quita 8, 9 y 10. Se fijan al empezar la partida.
+ */
+export function configPara(
+  cartas: 'completa' | 'cuarenta',
+  baraja: 'espanola' | 'americana',
+): ConquianConfig {
+  const valores =
+    cartas === 'cuarenta' ? VALORES_40 : baraja === 'americana' ? VALORES_52 : VALORES_48;
+  return { cartasPorJugador: 9, baraja: { valores } };
+}
 
 // ---------- utilidades ----------
 

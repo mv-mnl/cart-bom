@@ -7,7 +7,7 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "pnpm --filter @cartas/client dev",
+    "dev": "pnpm --parallel --filter @cartas/client --filter @cartas/server dev",
     "build": "pnpm -r run build",
     "test": "vitest run",
     "test:watch": "vitest",
