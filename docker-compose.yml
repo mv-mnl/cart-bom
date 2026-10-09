@@ -25,3 +25,18 @@ services:
       server:
         condition: service_healthy
     restart: unless-stopped
+
+  # Publica el juego en tu dominio con Cloudflare Tunnel (HTTPS, sin abrir puertos).
+  # Solo arranca con: docker compose --profile cloudflare up -d
+  # En Cloudflare, el "public hostname" del túnel apunta a http://client:80.
+  tunel:
+    image: cloudflare/cloudflared:2026.9.1
+    profiles: ['cloudflare']
+    command: tunnel --no-autoupdate run
+    environment:
+      # Sin token, cloudflared no arranca y lo dice en sus logs.
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      client:
+        condition: service_healthy
+    restart: unless-stopped
