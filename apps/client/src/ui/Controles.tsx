@@ -56,9 +56,15 @@ function mensaje(
         : 'Esperando a que los demás elijan…';
     case 'oferta': {
       const turno = fase.cola[0] ?? -1;
-      if (turno !== HUMANO) return `${nombre(turno)} está pensando…`;
       const carta = conArticulo(fase.carta, estilo);
-      return fase.origen === 'mazo' ? `Salió ${carta}. ¿Te sirve?` : `Botaron ${carta}. ¿Te sirve?`;
+      const puso = fase.origen === 'mazo' ? 'volteó' : 'botó';
+      if (turno !== HUMANO) {
+        return fase.origen === 'mazo' && fase.de === turno
+          ? `${nombre(turno)} volteó ${carta} y está pensando…`
+          : `${nombre(fase.de)} ${puso} ${carta}. ${nombre(turno)} está pensando…`;
+      }
+      if (fase.de === HUMANO) return `Salió ${carta}. ¿Te sirve?`;
+      return `${nombre(fase.de)} ${puso} ${carta}. ¿Te sirve?`;
     }
     case 'botar':
       return fase.jugador === HUMANO

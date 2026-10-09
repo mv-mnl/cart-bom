@@ -24,6 +24,8 @@ extend({ Container, Graphics, Sprite, Text });
 
 const COLOR_SELECCION = 0xfff0a0;
 const COLOR_PISTA = 0xd4ffcc;
+/** La carta de la mesa mientras la decide otro jugador. */
+const COLOR_APAGADA = 0x8a8a8a;
 /** Distancia (px) que hay que mover el dedo para que cuente como arrastre y no como toque. */
 const UMBRAL_ARRASTRE = 8;
 const NADA: ReadonlySet<string> = new Set();
@@ -373,7 +375,15 @@ function Escena({ ancho, alto }: { ancho: number; alto: number }) {
           texture={texturas.get(texturaDe(baraja, c.textura)) ?? Texture.EMPTY}
           anchor={0.5}
           alpha={c.alpha}
-          tint={c.seleccionada ? COLOR_SELECCION : c.pista ? COLOR_PISTA : 0xffffff}
+          tint={
+            c.seleccionada
+              ? COLOR_SELECCION
+              : c.pista
+                ? COLOR_PISTA
+                : c.apagada
+                  ? COLOR_APAGADA
+                  : 0xffffff
+          }
           eventMode={c.toque ? 'static' : 'none'}
           cursor={c.toque ? cursor(c.toque) : 'default'}
           {...(c.toque ? { onPointerDown: empezar(c, c.toque, i + 1) } : {})}

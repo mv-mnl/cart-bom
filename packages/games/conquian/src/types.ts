@@ -31,6 +31,8 @@ export type Fase =
       readonly type: 'oferta';
       readonly carta: Card;
       readonly origen: 'mazo' | 'botada';
+      /** Quien la puso en la mesa: el que la volteó o el que la botó. */
+      readonly de: number;
       readonly cola: readonly number[];
       readonly voltea: number;
     }
@@ -97,6 +99,9 @@ export type FaseView =
       readonly type: 'oferta';
       readonly carta: Card;
       readonly origen: 'mazo' | 'botada';
+      /** Quien la puso en la mesa: el que la volteó o el que la botó. */
+      readonly de: number;
+      /** A quien se le ofrece ahora. */
       readonly turno: number;
     }
   | { readonly type: 'botar'; readonly jugador: number }

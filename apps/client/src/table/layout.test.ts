@@ -1,7 +1,7 @@
 import { conquian, type ConquianState } from '@cartas/conquian';
 import { describe, expect, it } from 'vitest';
 import { SIN_SELECCION } from '../ui/opciones';
-import { layoutMesa, zonaEn, type Escena } from './layout';
+import { layoutMesa, textoOferta, zonaEn, type Escena } from './layout';
 import { DORSO } from './texturas';
 
 const escenaDe = (state: ConquianState, zonaArmado = false): Escena =>
@@ -124,4 +124,51 @@ describe('lugares del intercambio: la misma regla para todos', () => {
       });
     }
   }
+});
+
+describe('la carta de la mesa', () => {
+  // Tras el intercambio voltea el 0 (tú) y la carta se te ofrece primero.
+  const ofrecida = pasan(inicio, [0, 1, 2]);
+  const carta = (s: ConquianState) => {
+    const { fase } = s;
+    return fase.type === 'oferta'
+      ? escenaDe(s).cartas.find((c) => c.key === fase.carta.id)
+      : undefined;
+  };
+
+  it('se ve normal y se puede tocar cuando te la ofrecen a ti', () => {
+    const c = carta(ofrecida);
+    expect(c?.apagada).toBe(false);
+    expect(c?.toque).toEqual({ tipo: 'mesa' });
+  });
+
+  it('se ve en gris y no se toca mientras la decide otro', () => {
+    const s = conquian.apply(ofrecida, { type: 'pasar', player: 0 });
+    const c = carta(s);
+    expect(c?.apagada).toBe(true);
+    expect(c?.toque).toBeNull();
+  });
+});
+
+describe('textoOferta', () => {
+  const nombres = ['Tú', 'Ana', 'Beto'];
+  const fase = (origen: 'mazo' | 'botada', de: number, turno: number) =>
+    ({
+      type: 'oferta',
+      carta: { id: 'oros-1', palo: 'oros', valor: 1 },
+      origen,
+      de,
+      turno,
+    }) as const;
+
+  it('si es para ti, te pregunta', () => {
+    expect(textoOferta(fase('mazo', 1, 0), 0, nombres)).toBe('¿Te sirve?');
+  });
+  it('si la volteó quien la decide, dice quién la volteó', () => {
+    expect(textoOferta(fase('mazo', 1, 1), 0, nombres)).toBe('Volteó Ana');
+  });
+  it('si se la pasaron o la botaron, dice para quién es', () => {
+    expect(textoOferta(fase('mazo', 1, 2), 0, nombres)).toBe('Para Beto');
+    expect(textoOferta(fase('botada', 0, 1), 0, nombres)).toBe('Para Ana');
+  });
 });

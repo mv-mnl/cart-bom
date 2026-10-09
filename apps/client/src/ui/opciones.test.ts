@@ -21,7 +21,7 @@ function estado(mano: Card[], juegos: Juego[], carta: Card): ConquianState {
     ],
     mazo: [c('copas', 12)],
     muertas: [],
-    fase: { type: 'oferta', carta, origen: 'mazo', cola: [0, 1], voltea: 1 },
+    fase: { type: 'oferta', carta, origen: 'mazo', de: 0, cola: [0, 1], voltea: 1 },
     siguienteJuego: 2,
   };
 }

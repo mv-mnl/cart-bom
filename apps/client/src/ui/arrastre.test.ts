@@ -38,6 +38,7 @@ const oferta = (carta: Card): Fase => ({
   type: 'oferta',
   carta,
   origen: 'mazo',
+  de: 0,
   cola: [0, 1],
   voltea: 1,
 });

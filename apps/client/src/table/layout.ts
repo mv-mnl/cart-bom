@@ -1,4 +1,4 @@
-import { sePuedeDesmochar, type ConquianView, type Juego } from '@cartas/conquian';
+import { sePuedeDesmochar, type ConquianView, type FaseView, type Juego } from '@cartas/conquian';
 import type { Card } from '@cartas/core';
 import { ARMADO_VACIO, type Armado, type Destino, type Pieza } from '../ui/arrastre';
 import type { Seleccion } from '../ui/opciones';
@@ -26,6 +26,8 @@ export interface SpriteCarta {
   /** Las ayudas la marcan como parte de una jugada posible. */
   readonly pista: boolean;
   readonly alpha: number;
+  /** En gris: la carta de la mesa mientras la decide otro jugador. */
+  readonly apagada?: boolean;
   readonly toque: Toque | null;
   /** Si la carta aparece de nuevo en pantalla, de dónde llega (para animarla). */
   readonly origen?: Origen;
@@ -33,6 +35,17 @@ export interface SpriteCarta {
   readonly velocidad?: number;
   /** Es la carta que este jugador eligió para pasar, esperando en su lugar. */
   readonly pasadaDe?: number;
+}
+
+/** Arriba de la carta de la mesa: para ti, o quién la volteó o quién la está decidiendo. */
+export function textoOferta(
+  fase: Extract<FaseView, { type: 'oferta' }>,
+  yo: number,
+  nombres: readonly string[],
+): string {
+  if (fase.turno === yo) return '¿Te sirve?';
+  const nombre = nombres[fase.turno] ?? '';
+  return fase.origen === 'mazo' && fase.de === fase.turno ? `Volteó ${nombre}` : `Para ${nombre}`;
 }
 
 /**
@@ -584,17 +597,18 @@ export function layoutMesa(
         seleccionada: false,
         pista: paraMi && pistas.has('mesa'),
         alpha: 1,
+        apagada: !paraMi,
         toque: paraMi ? { tipo: 'mesa' } : null,
-        // Del mazo llega volteándose; si la botaron, desde quien la botó (el anterior en turno).
+        // Del mazo llega volteándose; si la botaron, desde quien la botó.
         origen:
           view.fase.origen === 'mazo'
             ? { desde: 'mazo', voltear: true }
-            : { desde: { jugador: (view.fase.turno - 1 + n) % n } },
+            : { desde: { jugador: view.fase.de } },
       });
     }
     etiquetas.push({
       key: 'oferta-para',
-      texto: paraMi ? '¿Te sirve?' : `Para ${nombres[view.fase.turno] ?? ''}`,
+      texto: textoOferta(view.fase, view.yo, nombres),
       x: cx,
       y: cy - h * 0.72,
       color: paraMi ? DORADO : BLANCO,

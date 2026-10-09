@@ -99,6 +99,7 @@ function voltear(state: ConquianState, jugador: number): ConquianState {
       type: 'oferta',
       carta,
       origen: 'mazo',
+      de: jugador,
       cola: ronda(jugador, n),
       voltea: (jugador + 1) % n,
     },
@@ -261,6 +262,7 @@ function botar(state: ConquianState, player: number, cardId: string): ConquianSt
       type: 'oferta',
       carta,
       origen: 'botada',
+      de: player,
       cola: ronda(player + 1, n).slice(0, n - 1),
       voltea: (player + 1) % n,
     },
@@ -391,7 +393,13 @@ function faseView(state: ConquianState, player: number): FaseView {
         listos: fase.elegidas.map((e) => e !== null),
       };
     case 'oferta':
-      return { type: 'oferta', carta: fase.carta, origen: fase.origen, turno: fase.cola[0] ?? -1 };
+      return {
+        type: 'oferta',
+        carta: fase.carta,
+        origen: fase.origen,
+        de: fase.de,
+        turno: fase.cola[0] ?? -1,
+      };
     case 'botar':
     case 'terminado':
       return fase;

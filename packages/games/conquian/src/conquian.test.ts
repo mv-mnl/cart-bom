@@ -26,6 +26,7 @@ const oferta = (carta: Card, cola: number[]): Fase => ({
   type: 'oferta',
   carta,
   origen: 'mazo',
+  de: cola[0] ?? 0,
   cola,
   voltea: ((cola[0] ?? 0) + 1) % cola.length,
 });
@@ -496,6 +497,48 @@ describe('view', () => {
       listos: [true, false],
     });
     expect(JSON.stringify(conquian.view(s, 1))).not.toContain(`"${elegida}"`);
+  });
+
+  it('todos ven quién puso la carta en la mesa y a quién se le ofrece', () => {
+    let s = estado({
+      manos: [[c('oros', 1)], [c('oros', 2)], [c('oros', 4)]],
+      mazo: [c('copas', 6), c('copas', 7)],
+      fase: oferta(c('espadas', 12), [1, 2, 0]),
+    });
+    s = conquian.apply(s, { type: 'pasar', player: 1 });
+    for (const p of [0, 1, 2]) {
+      expect(conquian.view(s, p).fase).toEqual({
+        type: 'oferta',
+        carta: c('espadas', 12),
+        origen: 'mazo',
+        de: 1,
+        turno: 2,
+      });
+    }
+  });
+});
+
+describe('quién puso la carta en la mesa', () => {
+  it('la volteada es del que voltea y lo sigue siendo mientras la pasan', () => {
+    let s = estado({
+      manos: [[c('oros', 1)], [c('oros', 2)], [c('oros', 4)]],
+      mazo: [c('copas', 6), c('copas', 7)],
+      fase: oferta(c('espadas', 12), [1, 2, 0]),
+    });
+    s = conquian.apply(s, { type: 'pasar', player: 1 });
+    expect(s.fase).toMatchObject({ de: 1, cola: [2, 0] });
+    s = conquian.apply(s, { type: 'pasar', player: 2 });
+    s = conquian.apply(s, { type: 'pasar', player: 0 });
+    expect(s.fase).toMatchObject({ origen: 'mazo', carta: c('copas', 6), de: 2 });
+  });
+
+  it('la botada es del que la botó', () => {
+    const s0 = estado({
+      manos: [[], [c('oros', 1), c('oros', 7)], [], []],
+      fase: { type: 'botar', jugador: 1 },
+    });
+    const s = conquian.apply(s0, { type: 'botar', player: 1, cardId: 'oros-7' });
+    expect(s.fase).toMatchObject({ origen: 'botada', de: 1, cola: [2, 3, 0] });
   });
 });
 
