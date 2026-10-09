@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { usePartida } from '../store';
+import { AjustesPartida } from './AjustesPartida';
 
 /** Un lugar de la mesa en la sala de espera. */
 function Lugar({
@@ -110,6 +111,8 @@ export function SalaEspera() {
             ))}
           </ol>
         </section>
+
+        <AjustesPartida />
 
         {soyAnfitrion ? (
           <>

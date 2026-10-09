@@ -1,5 +1,5 @@
 import type { Card } from '@cartas/core';
-import { usePartida, type ModoControl } from '../store';
+import { estiloDe, usePartida, type ModoControl } from '../store';
 import { obligado, ofertaMia, resultado, type Vista } from '../vista';
 import { conArticulo, datosPalo, etiquetaCorta, nombreCarta, type EstiloBaraja } from './baraja';
 import { opcionesSeleccion, sugerencias, type Opcion } from './opciones';
@@ -21,7 +21,7 @@ function MiniCarta({ carta, estilo }: { carta: Card; estilo: EstiloBaraja }) {
 
 function BotonOpcion({ opcion, principal }: { opcion: Opcion; principal: boolean }) {
   const jugar = usePartida((s) => s.jugar);
-  const estilo = usePartida((s) => s.baraja);
+  const estilo = usePartida(estiloDe);
   return (
     <button
       className={principal ? 'opcion' : 'opcion secundario'}
@@ -137,7 +137,7 @@ export function Controles() {
   const avisoArrastre = usePartida((s) => s.aviso);
   const ayudas = usePartida((s) => s.ayudas);
   const modo = usePartida((s) => s.modo);
-  const estilo = usePartida((s) => s.baraja);
+  const estilo = usePartida(estiloDe);
   const { limpiarSeleccion, nueva, jugar } = usePartida.getState();
   if (!vista) return null;
 

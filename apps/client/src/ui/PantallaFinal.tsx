@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { entradaPanel } from '../anim/victoria';
 import { usePartida } from '../store';
+import { AjustesPartida } from './AjustesPartida';
 import { resumenFinal } from './final';
 
 /** Panel al terminar la partida: quién ganó, cuánto bajó cada quien y qué hacer ahora. */
@@ -8,6 +9,9 @@ export function PantallaFinal() {
   const vista = usePartida((s) => s.vista);
   const nombres = usePartida((s) => s.nombres);
   const verMesa = usePartida((s) => s.verMesa);
+  const sala = usePartida((s) => s.enLinea?.sala ?? null);
+  // En línea, la revancha (y el juego con que se hace) los decide el anfitrión.
+  const decide = !sala || sala.yo === sala.anfitrion;
   const { nueva, salir, cerrarFinal } = usePartida.getState();
   const resumen = useMemo(
     () => (vista ? resumenFinal(vista.view, nombres) : null),
@@ -53,10 +57,21 @@ export function PantallaFinal() {
             </li>
           ))}
         </ol>
+        <details className="ajustes-final">
+          <summary>Juego de la próxima partida</summary>
+          <AjustesPartida />
+        </details>
         <div className="acciones-final">
-          <button className="boton-juego" onClick={() => nueva(vista.view.jugadores.length)}>
-            {tipo === 'ganaste' ? 'Otra partida' : 'Revancha'}
-          </button>
+          {decide ? (
+            <button className="boton-juego" onClick={() => nueva(vista.view.jugadores.length)}>
+              {tipo === 'ganaste' ? 'Otra partida' : 'Revancha'}
+            </button>
+          ) : (
+            <p className="esperando">
+              Esperando a que {sala?.asientos[sala.anfitrion]?.nombre ?? 'el anfitrión'} empiece la
+              revancha…
+            </p>
+          )}
           <div className="fila">
             <button className="secundario" onClick={cerrarFinal}>
               Ver la mesa

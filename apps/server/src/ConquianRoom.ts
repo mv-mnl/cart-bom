@@ -1,10 +1,10 @@
-import { configPara, type ConquianAction, type ConquianView } from '@cartas/conquian';
-import type {
-  MensajeServidor,
-  OpcionesCrear,
-  OpcionesUnirse,
-  BarajaSala,
-  CartasSala,
+import type { ConquianAction, ConquianView } from '@cartas/conquian';
+import {
+  esBarajaSala,
+  esCartasSala,
+  type MensajeServidor,
+  type OpcionesCrear,
+  type OpcionesUnirse,
 } from '@cartas/shared';
 import { CloseCode, Room, ServerError, type Client, type Delayed } from '@colyseus/core';
 import { randomUUID } from 'node:crypto';
@@ -28,9 +28,6 @@ export function nuevoCodigo(): string {
   ).join('');
 }
 
-const esCartas = (x: unknown): x is CartasSala => x === 'completa' || x === 'cuarenta';
-const esBaraja = (x: unknown): x is BarajaSala => x === 'espanola' || x === 'americana';
-
 type Mensaje = MensajeServidor<ConquianView, ConquianAction>;
 
 /**
@@ -46,9 +43,9 @@ export class ConquianRoom extends Room {
     // Se asigna aquí y no como campo de la clase: así pasa por el setter de Colyseus.
     this.maxClients = MAX_JUGADORES;
     this.roomId = nuevoCodigo();
-    const cartas = esCartas(opciones.cartas) ? opciones.cartas : 'completa';
-    const baraja = esBaraja(opciones.baraja) ? opciones.baraja : 'espanola';
-    this.sala = new SalaConquian(this.roomId, configPara(cartas, baraja));
+    const cartas = esCartasSala(opciones.cartas) ? opciones.cartas : 'completa';
+    const baraja = esBarajaSala(opciones.baraja) ? opciones.baraja : 'espanola';
+    this.sala = new SalaConquian(this.roomId, cartas, baraja);
 
     this.onMessage('jugar', (client, msg: { accion?: unknown }) =>
       this.intentar(client, () => {
@@ -65,9 +62,16 @@ export class ConquianRoom extends Room {
         this.difundir(null);
       }),
     );
+    this.onMessage('configurar', (client, msg: { cartas?: unknown; baraja?: unknown }) =>
+      this.intentar(client, () => {
+        this.sala.configurar(client.sessionId, msg?.cartas, msg?.baraja);
+        this.difundirSala();
+      }),
+    );
     this.onMessage('revancha', (client) =>
       this.intentar(client, () => {
         this.sala.revancha(client.sessionId, randomUUID());
+        this.difundirSala();
         this.difundir(null);
       }),
     );
@@ -134,6 +138,8 @@ export class ConquianRoom extends Room {
       const vista = this.sala.vista(client.sessionId, jugada);
       if (vista) this.enviar(client, { type: 'estado', ...vista });
     }
+    // Al terminar, la sala cambia: el anfitrión ya puede cambiar el juego y empezar otra.
+    if (this.sala.terminada) this.difundirSala();
     this.programarCompu();
   }
 

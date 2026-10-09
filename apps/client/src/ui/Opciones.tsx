@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { usePartida, type CartasPartida, type ModoControl } from '../store';
+import { estiloDe, usePartida, type CartasPartida, type ModoControl } from '../store';
 import type { EstiloBaraja } from './baraja';
 import { InterruptorAyudas } from './InterruptorAyudas';
 
@@ -39,19 +39,29 @@ const BARAJAS: readonly [EstiloBaraja, string][] = [
   ['americana', 'Americana ♠♥'],
 ];
 
-/** Elegir cómo se ven las cartas. */
-export function SelectorBaraja() {
-  const baraja = usePartida((s) => s.baraja);
-  const cambiarBaraja = usePartida((s) => s.cambiarBaraja);
+export const nombreBaraja = (baraja: EstiloBaraja) =>
+  baraja === 'americana' ? 'Americana' : 'Española';
+
+/** Segmentos para elegir la baraja. `desactivado`: se ve lo elegido pero no se cambia. */
+export function SegmentosBaraja({
+  valor,
+  cambiar,
+  desactivado = false,
+}: {
+  valor: EstiloBaraja;
+  cambiar: (baraja: EstiloBaraja) => void;
+  desactivado?: boolean;
+}) {
   return (
     <div className="segmentos" role="radiogroup" aria-label="Baraja">
       {BARAJAS.map(([b, texto]) => (
         <button
           key={b}
           role="radio"
-          aria-checked={b === baraja}
+          aria-checked={b === valor}
           className="segmento"
-          onClick={() => cambiarBaraja(b)}
+          disabled={desactivado}
+          onClick={() => cambiar(b)}
         >
           {texto}
         </button>
@@ -60,11 +70,18 @@ export function SelectorBaraja() {
   );
 }
 
-/** Elegir con qué cartas se juega (se aplica al empezar la siguiente partida). */
-export function SelectorCartas() {
-  const cartas = usePartida((s) => s.cartas);
-  const baraja = usePartida((s) => s.baraja);
-  const cambiarCartas = usePartida((s) => s.cambiarCartas);
+/** Segmentos para elegir con qué cartas se juega; la completa depende de la baraja. */
+export function SegmentosCartas({
+  valor,
+  baraja,
+  cambiar,
+  desactivado = false,
+}: {
+  valor: CartasPartida;
+  baraja: EstiloBaraja;
+  cambiar: (cartas: CartasPartida) => void;
+  desactivado?: boolean;
+}) {
   const opciones: readonly [CartasPartida, string][] = [
     ['completa', baraja === 'americana' ? 'Completa (52)' : 'Completa (48)'],
     ['cuarenta', 'Sin 8, 9 y 10 (40)'],
@@ -75,9 +92,10 @@ export function SelectorCartas() {
         <button
           key={c}
           role="radio"
-          aria-checked={c === cartas}
+          aria-checked={c === valor}
           className="segmento"
-          onClick={() => cambiarCartas(c)}
+          disabled={desactivado}
+          onClick={() => cambiar(c)}
         >
           {texto}
         </button>
@@ -86,9 +104,25 @@ export function SelectorCartas() {
   );
 }
 
+/** La baraja de la próxima partida contra la computadora (preferencia del menú). */
+export function SelectorBaraja() {
+  const baraja = usePartida((s) => s.baraja);
+  const cambiarBaraja = usePartida((s) => s.cambiarBaraja);
+  return <SegmentosBaraja valor={baraja} cambiar={cambiarBaraja} />;
+}
+
+/** Con qué cartas se juega la próxima partida contra la computadora. */
+export function SelectorCartas() {
+  const cartas = usePartida((s) => s.cartas);
+  const baraja = usePartida((s) => s.baraja);
+  const cambiarCartas = usePartida((s) => s.cambiarCartas);
+  return <SegmentosCartas valor={cartas} baraja={baraja} cambiar={cambiarCartas} />;
+}
+
 /** Botón "Opciones" de la mesa: abre un panel con el modo y las ayudas. */
 export function BotonOpciones() {
   const [abierto, setAbierto] = useState(false);
+  const estilo = usePartida(estiloDe);
   const ref = useRef<HTMLDivElement>(null);
 
   // Se cierra al tocar fuera del panel.
@@ -111,7 +145,9 @@ export function BotonOpciones() {
           <span className="rotulo">Modo de juego</span>
           <SelectorModo />
           <span className="rotulo">Baraja</span>
-          <SelectorBaraja />
+          <p className="nota-opciones">
+            {nombreBaraja(estilo)}, la de esta partida. Se cambia al terminar.
+          </p>
           <InterruptorAyudas />
         </div>
       )}

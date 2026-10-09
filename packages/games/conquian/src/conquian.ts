@@ -34,7 +34,7 @@ export function configPara(
 ): ConquianConfig {
   const valores =
     cartas === 'cuarenta' ? VALORES_40 : baraja === 'americana' ? VALORES_52 : VALORES_48;
-  return { cartasPorJugador: 9, baraja: { valores } };
+  return { cartasPorJugador: 9, baraja: { valores }, estilo: baraja };
 }
 
 // ---------- utilidades ----------

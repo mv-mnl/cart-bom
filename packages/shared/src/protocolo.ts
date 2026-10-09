@@ -79,6 +79,9 @@ export interface AsientoSala {
 export type CartasSala = 'completa' | 'cuarenta';
 export type BarajaSala = 'espanola' | 'americana';
 
+export const esCartasSala = (x: unknown): x is CartasSala => x === 'completa' || x === 'cuarenta';
+export const esBarajaSala = (x: unknown): x is BarajaSala => x === 'espanola' || x === 'americana';
+
 /** Lo que manda quien crea la sala. */
 export interface OpcionesCrear {
   readonly nombre: string;
@@ -101,6 +104,11 @@ export interface Sala {
   /** Tu asiento (es tu número de jugador en la partida). */
   readonly yo: number;
   readonly enJuego: boolean;
+  /** La partida terminó: el anfitrión puede cambiar el juego y empezar la revancha. */
+  readonly terminada: boolean;
+  /** Con qué se juega la próxima partida (o la actual). Solo el anfitrión lo cambia. */
+  readonly cartas: CartasSala;
+  readonly baraja: BarajaSala;
   readonly minJugadores: number;
   readonly maxJugadores: number;
 }
@@ -112,7 +120,9 @@ export type MensajeCliente<Action> =
   | { readonly type: 'jugar'; readonly accion: Action }
   /** El anfitrión empieza; los asientos que falten los juega la computadora. */
   | { readonly type: 'empezar'; readonly compus: number }
-  /** Otra partida con los mismos asientos, cuando terminó la anterior. */
+  /** El anfitrión cambia el juego, antes de empezar o entre partidas. */
+  | { readonly type: 'configurar'; readonly cartas: CartasSala; readonly baraja: BarajaSala }
+  /** El anfitrión empieza otra partida con los mismos asientos, cuando terminó la anterior. */
   | { readonly type: 'revancha' };
 
 /** Del servidor a cada cliente. */

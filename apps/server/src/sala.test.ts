@@ -2,7 +2,7 @@ import { configPara } from '@cartas/conquian';
 import { describe, expect, it } from 'vitest';
 import { Rechazo, SalaConquian, limpiarNombre } from './sala';
 
-const nueva = () => new SalaConquian('ABCDE', configPara('cuarenta', 'espanola'));
+const nueva = () => new SalaConquian('ABCDE', 'cuarenta', 'espanola');
 
 /** Sala de dos personas (`ana` es la anfitriona) ya repartida. */
 function enJuego(compus = 0) {
@@ -64,6 +64,21 @@ describe('sala de espera', () => {
     expect(() => sala.empezar('ana', 0, 's')).toThrow(Rechazo);
     sala.empezar('ana', 1, 's');
     expect(sala.enJuego).toBe(true);
+  });
+
+  it('solo el anfitrión cambia el juego, y con valores válidos', () => {
+    const sala = nueva();
+    sala.sentar('ana', 'Ana');
+    sala.sentar('beto', 'Beto');
+    expect(sala.sala('beto')).toMatchObject({ cartas: 'cuarenta', baraja: 'espanola' });
+    expect(() => sala.configurar('beto', 'completa', 'americana')).toThrow('Solo quien creó');
+    expect(() => sala.configurar('ana', 'todas', 'americana')).toThrow('Juego inválido');
+    sala.configurar('ana', 'completa', 'americana');
+    expect(sala.sala('beto')).toMatchObject({ cartas: 'completa', baraja: 'americana' });
+    sala.empezar('ana', 0, 's');
+    const vista = sala.vista('beto', null);
+    expect(vista?.view.config.estilo).toBe('americana');
+    expect(vista?.view.config.baraja.valores).toHaveLength(13);
   });
 
   it('ya empezada no entra nadie', () => {
@@ -157,9 +172,10 @@ describe('partida', () => {
     expect(sala.sala('ana').asientos[1]?.desconectado).toBe(false);
   });
 
-  it('revancha solo al terminar, con los mismos asientos', () => {
+  it('revancha solo al terminar, la empieza el anfitrión, con los mismos asientos', () => {
     const sala = enJuego(2);
     expect(() => sala.revancha('ana', 'otra')).toThrow('no ha terminado');
+    expect(() => sala.configurar('ana', 'completa', 'americana')).toThrow('entre partidas');
     // Beto se va (lo juega la computadora) y Ana pasa siempre que puede.
     sala.quitar('beto');
     for (let i = 0; i < 2000 && !sala.terminada; i++) {
@@ -171,7 +187,12 @@ describe('partida', () => {
       else sala.aplicarCompu(accion);
     }
     expect(sala.terminada).toBe(true);
+    expect(sala.sala('ana').terminada).toBe(true);
+    // Entre partidas el anfitrión cambia el juego; vale desde la revancha.
+    sala.configurar('ana', 'completa', 'americana');
+    expect(sala.sala('ana')).toMatchObject({ cartas: 'completa', baraja: 'americana' });
     sala.revancha('ana', 'otra');
+    expect(sala.vista('ana', null)?.view.config.estilo).toBe('americana');
     expect(sala.terminada).toBe(false);
     expect(sala.sala('ana').asientos).toHaveLength(4);
   });

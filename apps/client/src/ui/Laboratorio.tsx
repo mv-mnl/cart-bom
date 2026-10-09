@@ -8,6 +8,7 @@ import { cancelarIA, conquianPara, enLocal, pausaIA, usePartida } from '../store
 import { ARMADO_VACIO } from './arrastre';
 import { ESCENARIOS, siguienteJugada, type Preparado } from './escenarios';
 import { SIN_SELECCION } from './opciones';
+import { SelectorBaraja, SelectorCartas } from './Opciones';
 import { Partida } from './Partida';
 
 const VELOCIDADES = [0.25, 0.5, 1, 2] as const;
@@ -187,6 +188,15 @@ export function Laboratorio() {
     // Solo al montar.
   }, []);
 
+  // La baraja es parte de la partida: al cambiarla se vuelve a poner el escenario con ella.
+  const primerJuego = useRef(juego);
+  useEffect(() => {
+    if (juego === primerJuego.current) return;
+    primerJuego.current = juego;
+    if (actual) mostrar(actual);
+    // Solo cuando cambia la baraja o las cartas.
+  }, [juego]);
+
   // Autojugar: la IA juega en todos los asientos, sin parar, a la velocidad elegida.
   useEffect(() => {
     if (!auto) return;
@@ -269,6 +279,14 @@ export function Laboratorio() {
               </button>
             ))}
           </div>
+          <div className="fila-lab">
+            <span>Baraja</span>
+            <SelectorBaraja />
+          </div>
+          <div className="fila-lab">
+            <span>Cartas</span>
+            <SelectorCartas />
+          </div>
           <label className="fila-lab">
             <input
               type="checkbox"
@@ -323,7 +341,7 @@ export function Laboratorio() {
             </section>
           ))}
           <p className="nota-lab">
-            Cambia baraja, modo o sonido en ⚙ Opciones. Tocar la mesa juega de verdad y detiene el
+            Cambia modo o sonido en ⚙ Opciones. Tocar la mesa juega de verdad y detiene el
             escenario.
           </p>
         </aside>

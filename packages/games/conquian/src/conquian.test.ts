@@ -726,5 +726,6 @@ describe('configPara', () => {
     expect(total(cartas('completa', 'espanola'))).toBe(48);
     expect(total(cartas('cuarenta', 'americana'))).toBe(40);
     expect(configPara('cuarenta', 'espanola').cartasPorJugador).toBe(9);
+    expect(configPara('completa', 'americana').estilo).toBe('americana');
   });
 });

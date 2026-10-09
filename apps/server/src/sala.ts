@@ -1,13 +1,22 @@
 import {
+  configPara,
   conquian,
   createConquian,
   jugadaIA,
   type ConquianAction,
-  type ConquianConfig,
   type ConquianState,
   type ConquianView,
 } from '@cartas/conquian';
-import { igualJSON, instantanea, type Instantanea, type Sala } from '@cartas/shared';
+import {
+  esBarajaSala,
+  esCartasSala,
+  igualJSON,
+  instantanea,
+  type BarajaSala,
+  type CartasSala,
+  type Instantanea,
+  type Sala,
+} from '@cartas/shared';
 
 export const MIN_JUGADORES = conquian.minPlayers;
 export const MAX_JUGADORES = conquian.maxPlayers;
@@ -38,14 +47,15 @@ export class SalaConquian {
   private asientos: Asiento[] = [];
   private anfitrion = 0;
   private state: ConquianState | null = null;
-  /** El juego con las reglas de la sala (qué cartas se usan). */
-  private readonly juego: ReturnType<typeof createConquian>;
+  /** El juego con las reglas de la sala (qué cartas se usan y cómo se ven). */
+  private juego: ReturnType<typeof createConquian>;
 
   constructor(
     readonly codigo: string,
-    config: ConquianConfig,
+    private cartas: CartasSala,
+    private baraja: BarajaSala,
   ) {
-    this.juego = createConquian(config);
+    this.juego = createConquian(configPara(cartas, baraja));
   }
 
   get enJuego(): boolean {
@@ -115,9 +125,7 @@ export class SalaConquian {
 
   /** El anfitrión empieza; `compus` asientos más los juega la computadora. */
   empezar(id: string, compus: unknown, seed: string): void {
-    if (this.exigirAsiento(id) !== this.anfitrion) {
-      throw new Rechazo('Solo quien creó la sala puede empezar.');
-    }
+    this.exigirAnfitrion(id, 'Solo quien creó la sala puede empezar.');
     if (this.enJuego) throw new Rechazo('La partida ya empezó.');
     if (typeof compus !== 'number' || !Number.isInteger(compus) || compus < 0) {
       throw new Rechazo('Número de computadoras inválido.');
@@ -132,11 +140,30 @@ export class SalaConquian {
     this.repartir(seed);
   }
 
-  /** Otra partida con los mismos asientos. Cualquiera la pide al terminar. */
+  /**
+   * El anfitrión cambia con qué se juega: antes de empezar o al terminar una partida.
+   * La partida en curso nunca cambia; lo nuevo vale desde el siguiente reparto.
+   */
+  configurar(id: string, cartas: unknown, baraja: unknown): void {
+    this.exigirAnfitrion(id, 'Solo quien creó la sala cambia el juego.');
+    if (this.enJuego && !this.terminada) {
+      throw new Rechazo('El juego se cambia entre partidas.');
+    }
+    if (!esCartasSala(cartas) || !esBarajaSala(baraja)) throw new Rechazo('Juego inválido.');
+    this.cartas = cartas;
+    this.baraja = baraja;
+    this.juego = createConquian(configPara(cartas, baraja));
+  }
+
+  /** Otra partida con los mismos asientos, cuando terminó la anterior. La empieza el anfitrión. */
   revancha(id: string, seed: string): void {
-    this.exigirAsiento(id);
+    this.exigirAnfitrion(id, 'Solo quien creó la sala empieza la revancha.');
     if (!this.terminada) throw new Rechazo('La partida no ha terminado.');
     this.repartir(seed);
+  }
+
+  private exigirAnfitrion(id: string, motivo: string): void {
+    if (this.exigirAsiento(id) !== this.anfitrion) throw new Rechazo(motivo);
   }
 
   private repartir(seed: string): void {
@@ -186,6 +213,9 @@ export class SalaConquian {
       anfitrion: this.anfitrion,
       yo: this.asientoDe(id),
       enJuego: this.enJuego,
+      terminada: this.terminada,
+      cartas: this.cartas,
+      baraja: this.baraja,
       minJugadores: MIN_JUGADORES,
       maxJugadores: MAX_JUGADORES,
     };

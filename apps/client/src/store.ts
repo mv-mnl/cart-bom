@@ -76,6 +76,13 @@ export function conquianPara(cartas: CartasPartida, baraja: EstiloBaraja) {
   return createConquian(configPara(cartas, baraja));
 }
 
+/**
+ * Cómo se dibujan las cartas: con partida, el de esa partida (no se puede cambiar a media
+ * partida); sin partida, la preferencia del menú.
+ */
+export const estiloDe = (s: Pick<Partida, 'vista' | 'baraja'>): EstiloBaraja =>
+  s.vista?.view.config.estilo ?? s.baraja;
+
 /** Pone en la mesa un estado de la partida local y la vista del humano. */
 export function enLocal(
   local: ConquianState | null,

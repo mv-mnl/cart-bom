@@ -5,6 +5,11 @@ export interface ConquianConfig {
   /** Cartas que recibe cada jugador. Se gana al tener `cartasPorJugador + 1` bajadas. */
   readonly cartasPorJugador: number;
   readonly baraja: DeckOptions;
+  /**
+   * Cómo se dibujan las cartas en esta partida. No cambia las reglas; se fija al empezar
+   * para que una baraja de 48 (sin 10) nunca se vea como americana, ni al revés.
+   */
+  readonly estilo?: 'espanola' | 'americana';
 }
 
 export interface Juego {
