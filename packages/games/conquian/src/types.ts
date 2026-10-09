@@ -114,6 +114,8 @@ export type FaseView =
 
 /** Lo que ve un jugador: nunca las manos ajenas ni el orden del mazo. */
 export interface ConquianView {
+  /** Las reglas de la partida (qué cartas hay, cuántas se reparten): son públicas. */
+  readonly config: ConquianConfig;
   readonly yo: number;
   readonly mano: readonly Card[];
   readonly jugadores: readonly {

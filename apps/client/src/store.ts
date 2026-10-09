@@ -21,6 +21,7 @@ import {
 import type { EstiloBaraja } from './ui/baraja';
 import { SIN_SELECCION, type Seleccion } from './ui/opciones';
 import type { OrdenMano } from './ui/orden';
+import { vistaDe, type Vista } from './vista';
 
 export const HUMANO = 0;
 /**
@@ -69,8 +70,22 @@ export function conquianPara(cartas: CartasPartida, baraja: EstiloBaraja) {
   return createConquian({ cartasPorJugador: 9, baraja: { valores: valoresPara(cartas, baraja) } });
 }
 
+/** Pone en la mesa un estado de la partida local y la vista del humano. */
+export function enLocal(
+  local: ConquianState | null,
+  jugada: ConquianAction | null = null,
+): Pick<Partida, 'local' | 'vista'> {
+  return { local, vista: local && vistaDe(local, HUMANO, jugada) };
+}
+
 interface Partida {
-  readonly state: ConquianState | null;
+  /**
+   * La partida completa, solo cuando se juega contra la computadora (o en el laboratorio).
+   * Es el motor local: la interfaz no la lee, solo lee `vista`.
+   */
+  readonly local: ConquianState | null;
+  /** Lo que ve el jugador de este navegador y lo que puede hacer. La mesa sale de aquí. */
+  readonly vista: Vista | null;
   readonly nombres: readonly string[];
   readonly seleccion: Seleccion;
   /** Cómo se muestra la mano. Es solo de este navegador; no toca el estado del juego. */
@@ -86,8 +101,6 @@ interface Partida {
   readonly baraja: EstiloBaraja;
   /** Con qué cartas se juega la próxima partida: completa, o sin 8, 9 y 10 (40). */
   readonly cartas: CartasPartida;
-  /** La última jugada aplicada (de cualquiera), para el sonido. `n` cambia en cada jugada. */
-  readonly ultimaJugada: { readonly accion: ConquianAction; readonly n: number } | null;
   /** Sonido apagado. Se guarda en el navegador. */
   readonly silencio: boolean;
   /** Cartas en la zona de armado (solo del cliente hasta que forman juego). */
@@ -162,7 +175,7 @@ export const usePartida = create<Partida>((set, get) => {
   /** Cola de la computadora: una jugada a la vez, con pausa entre cada una. */
   const programarIA = (anterior: ConquianState | null = null) => {
     cancelarIA();
-    const { state } = get();
+    const state = get().local;
     if (!state || conquian.result(state) || esperaAlHumano(state)) return;
     const bot = state.jugadores.findIndex(
       (_, p) => p !== HUMANO && conquian.validActions(state, p).length > 0,
@@ -170,22 +183,21 @@ export const usePartida = create<Partida>((set, get) => {
     if (bot === -1) return;
     const pausa = pausaIA(state, anterior);
     timerIA = setTimeout(() => {
-      const actual = get().state;
+      const actual = get().local;
       const accion = actual && jugadaIA(actual, bot);
       if (accion) aplicar(accion, false);
     }, pausa);
   };
 
   const aplicar = (accion: ConquianAction, delHumano: boolean) => {
-    const { state, seleccion } = get();
+    const { local: state, seleccion } = get();
     if (!state) return;
     const nuevo = conquian.apply(state, accion);
     const mano = nuevo.jugadores[HUMANO]?.mano ?? [];
     set({
-      state: nuevo,
+      ...enLocal(nuevo, accion),
       aviso: null,
       armado: ARMADO_VACIO,
-      ultimaJugada: { accion, n: (get().ultimaJugada?.n ?? 0) + 1 },
       // Si jugó la computadora, se conserva lo que el humano tenía seleccionado de su mano.
       seleccion: delHumano
         ? SIN_SELECCION
@@ -198,7 +210,8 @@ export const usePartida = create<Partida>((set, get) => {
   };
 
   return {
-    state: null,
+    local: null,
+    vista: null,
     nombres: [],
     seleccion: SIN_SELECCION,
     ordenMano: leerOrden(),
@@ -210,7 +223,6 @@ export const usePartida = create<Partida>((set, get) => {
 
     cartas: leer(CLAVE_CARTAS) === 'cuarenta' ? 'cuarenta' : 'completa',
 
-    ultimaJugada: null,
     silencio: leer(CLAVE_SILENCIO) === 'si',
 
     cambiarSilencio(silencio) {
@@ -236,10 +248,10 @@ export const usePartida = create<Partida>((set, get) => {
     },
 
     armar(pieza) {
-      const { state, armado } = get();
-      if (!state) return;
+      const { vista, armado } = get();
+      if (!vista) return;
       const nuevo = agregarPieza(armado, pieza);
-      const accion = jugadaDelArmado(state, HUMANO, nuevo);
+      const accion = jugadaDelArmado(vista, nuevo);
       if (accion) {
         aplicar(accion, true);
         return;
@@ -278,7 +290,7 @@ export const usePartida = create<Partida>((set, get) => {
       const seed = crypto.randomUUID();
       set({
         // Las cartas se fijan al empezar; cambiar la baraja a media partida solo cambia el dibujo.
-        state: conquianPara(get().cartas, get().baraja).setup(jugadores, seed),
+        ...enLocal(conquianPara(get().cartas, get().baraja).setup(jugadores, seed)),
         nombres: Array.from({ length: jugadores }, (_, i) => (i === HUMANO ? 'Tú' : `Compu ${i}`)),
         seleccion: SIN_SELECCION,
         armado: ARMADO_VACIO,
@@ -291,7 +303,7 @@ export const usePartida = create<Partida>((set, get) => {
     salir() {
       cancelarIA();
       set({
-        state: null,
+        ...enLocal(null),
         seleccion: SIN_SELECCION,
         armado: ARMADO_VACIO,
         aviso: null,

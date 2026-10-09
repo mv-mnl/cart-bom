@@ -1,6 +1,7 @@
 import { CONFIG_DEFAULT, type ConquianState, type Juego } from '@cartas/conquian';
 import type { Card, Palo, Valor } from '@cartas/core';
 import { describe, expect, it } from 'vitest';
+import { vistaDe } from '../vista';
 import { SIN_SELECCION, opcionesSeleccion, sugerencias } from './opciones';
 import { conArticulo, nombreCarta } from './baraja';
 
@@ -36,25 +37,25 @@ describe('opcionesSeleccion', () => {
   );
 
   it('con tres cincos y un cinco en la mesa ofrece el poker y la tercia de la mano', () => {
-    const etiquetas = opcionesSeleccion(s, 0, sel(['oros-5', 'copas-5', 'espadas-5'])).map(
+    const etiquetas = opcionesSeleccion(vistaDe(s, 0), sel(['oros-5', 'copas-5', 'espadas-5'])).map(
       (o) => o.etiqueta,
     );
     expect(etiquetas).toEqual(['Bajar poker de 5 con el 5 de bastos', 'Bajar tercia de 5']);
   });
 
   it('con dos cincos usa sola la carta de la mesa', () => {
-    const [opcion] = opcionesSeleccion(s, 0, sel(['oros-5', 'copas-5']));
+    const [opcion] = opcionesSeleccion(vistaDe(s, 0), sel(['oros-5', 'copas-5']));
     expect(opcion?.accion).toEqual({ type: 'tomar', player: 0, cardIds: ['oros-5', 'copas-5'] });
     expect(opcion?.cartas.map((x) => x.id)).toEqual(['bastos-5', 'oros-5', 'copas-5']);
   });
 
   it('sin selección no hay opciones; con algo que no sirve, tampoco', () => {
-    expect(opcionesSeleccion(s, 0, SIN_SELECCION)).toEqual([]);
-    expect(opcionesSeleccion(s, 0, sel(['oros-5', 'oros-1']))).toEqual([]);
+    expect(opcionesSeleccion(vistaDe(s, 0), SIN_SELECCION)).toEqual([]);
+    expect(opcionesSeleccion(vistaDe(s, 0), sel(['oros-5', 'oros-1']))).toEqual([]);
   });
 
   it('no da opciones a quien no tiene el turno', () => {
-    expect(opcionesSeleccion(s, 1, sel(['copas-1']))).toEqual([]);
+    expect(opcionesSeleccion(vistaDe(s, 1), sel(['copas-1']))).toEqual([]);
   });
 
   it('describe el desmoche', () => {
@@ -64,7 +65,7 @@ describe('opcionesSeleccion', () => {
       cartas: [c('oros', 1), c('copas', 1), c('espadas', 1), c('bastos', 1)],
     };
     const conPoker = estado([c('oros', 2), c('copas', 12)], [poker], c('oros', 3));
-    const [opcion] = opcionesSeleccion(conPoker, 0, {
+    const [opcion] = opcionesSeleccion(vistaDe(conPoker, 0), {
       cartas: ['oros-2'],
       desmoche: { juegoId: 'j1', cardId: 'oros-1' },
     });
@@ -77,20 +78,20 @@ describe('opcionesSeleccion', () => {
 describe('sugerencias', () => {
   it('sugiere agregar la carta de la mesa a un juego propio', () => {
     const s = estado([c('oros', 7), c('copas', 12)], [escaleraBastos], c('bastos', 4));
-    expect(sugerencias(s, 0).map((o) => o.etiqueta)).toEqual([
+    expect(sugerencias(vistaDe(s, 0)).map((o) => o.etiqueta)).toEqual([
       'Agregar el 4 de bastos a tu escalera de bastos',
     ]);
   });
 
   it('pone primero la jugada que baja más cartas de la mano', () => {
     const s = estado([c('oros', 1), c('oros', 2), c('oros', 4), c('copas', 12)], [], c('oros', 3));
-    const [mejor] = sugerencias(s, 0);
+    const [mejor] = sugerencias(vistaDe(s, 0));
     expect(mejor?.cartas.map((x) => x.valor).sort((a, b) => a - b)).toEqual([1, 2, 3, 4]);
   });
 
   it('no sugiere nada si no hay jugada', () => {
     const s = estado([c('oros', 7), c('copas', 12)], [], c('bastos', 4));
-    expect(sugerencias(s, 0)).toEqual([]);
+    expect(sugerencias(vistaDe(s, 0))).toEqual([]);
   });
 });
 
@@ -118,7 +119,7 @@ describe('baraja americana', () => {
 
   it('las jugadas se describen con la baraja elegida', () => {
     const s = estado([c('oros', 7), c('copas', 12)], [escaleraBastos], c('bastos', 4));
-    expect(sugerencias(s, 0, 4, 'americana').map((o) => o.etiqueta)).toEqual([
+    expect(sugerencias(vistaDe(s, 0), 4, 'americana').map((o) => o.etiqueta)).toEqual([
       'Agregar el 4 de tréboles a tu escalera de tréboles',
     ]);
   });

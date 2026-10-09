@@ -1,6 +1,7 @@
-import { conquian, type ConquianState } from '@cartas/conquian';
+import type { ConquianView } from '@cartas/conquian';
 import { Howl, Howler } from 'howler';
-import { HUMANO, usePartida } from '../store';
+import { usePartida } from '../store';
+import { resultado as resultadoDe } from '../vista';
 
 const NOMBRES = [
   'carta',
@@ -53,10 +54,10 @@ export function sonar(nombre: Sonido, retrasoMs = 0): void {
   else tocar();
 }
 
-/** Qué sonido corresponde a pasar de un estado al siguiente con la última jugada. */
+/** Qué sonido corresponde a pasar de una vista a la siguiente con la última jugada. */
 function sonidosDe(
-  antes: ConquianState | null,
-  despues: ConquianState | null,
+  antes: ConquianView | null,
+  despues: ConquianView | null,
   accion: string | null,
 ): Sonido[] {
   if (!despues) return [];
@@ -67,10 +68,12 @@ function sonidosDe(
   else if (accion === 'pasarCarta') lista.push('carta');
   else if (accion === 'pasar') lista.push('pasar');
 
-  const resultado = conquian.result(despues);
-  if (resultado && !conquian.result(antes)) {
+  const resultado = resultadoDe(despues);
+  if (resultado && !resultadoDe(antes)) {
     lista.push(
-      resultado.type === 'ganador' && resultado.ganadores.includes(HUMANO) ? 'victoria' : 'derrota',
+      resultado.type === 'ganador' && resultado.ganadores.includes(despues.yo)
+        ? 'victoria'
+        : 'derrota',
     );
     return lista;
   }
@@ -92,13 +95,15 @@ export function iniciarSonidos(): void {
   usePartida.subscribe((s, previo) => {
     if (s.silencio !== previo.silencio) Howler.mute(s.silencio);
     if (s.aviso && s.aviso !== previo.aviso) sonar('error');
-    if (s.state !== previo.state) {
-      const nueva =
-        previo.state === null || s.state === null || s.ultimaJugada === previo.ultimaJugada;
-      const accion = nueva ? null : (s.ultimaJugada?.accion.type ?? null);
-      sonidosDe(nueva ? null : previo.state, s.state, accion).forEach((n, i) => sonar(n, i * 180));
+    if (s.vista !== previo.vista) {
+      // Sin jugada es una mesa nueva (se repartió): no se compara con la anterior.
+      const jugada = s.vista?.jugada ?? null;
+      const antes = jugada && previo.vista ? previo.vista.view : null;
+      sonidosDe(antes, s.vista?.view ?? null, jugada?.type ?? null).forEach((n, i) =>
+        sonar(n, i * 180),
+      );
     }
     // Poner una carta en la zona de armado.
-    if (s.armado !== previo.armado && s.state === previo.state) sonar('carta');
+    if (s.armado !== previo.armado && s.vista === previo.vista) sonar('carta');
   });
 }

@@ -1,4 +1,5 @@
-import { conquian, type ConquianAction, type ConquianState, type Desmoche } from '@cartas/conquian';
+import type { ConquianAction, Desmoche } from '@cartas/conquian';
+import { obligado, ofertaMia, type Vista } from '../vista';
 import type { Seleccion } from './opciones';
 
 // ---------- zona de armado ----------
@@ -59,22 +60,16 @@ const mismoDesmoche = (a: ConquianAction, d: Desmoche | null) =>
     : d === null;
 
 /** La jugada que forman exactamente las cartas de la zona de armado, si hay una. */
-export function jugadaDelArmado(
-  state: ConquianState,
-  player: number,
-  armado: Armado,
-): ConquianAction | null {
+export function jugadaDelArmado(vista: Vista, armado: Armado): ConquianAction | null {
   if (piezasDe(armado) < 3) return null;
   const tipo = armado.mesa ? 'tomar' : 'bajar';
-  const accion = conquian
-    .validActions(state, player)
-    .find(
-      (a) =>
-        a.type === tipo &&
-        !('juegoId' in a && a.juegoId !== undefined) &&
-        mismoConjunto(a.cardIds, armado.cartas) &&
-        mismoDesmoche(a, armado.desmoche),
-    );
+  const accion = vista.acciones.find(
+    (a) =>
+      a.type === tipo &&
+      !('juegoId' in a && a.juegoId !== undefined) &&
+      mismoConjunto(a.cardIds, armado.cartas) &&
+      mismoDesmoche(a, armado.desmoche),
+  );
   return accion ?? null;
 }
 
@@ -112,12 +107,10 @@ export type Resultado =
 
 const NO_ENCAJA = 'Esa carta no encaja en ese juego.';
 
-function esMiTurno(state: ConquianState, player: number): boolean {
-  const { fase } = state;
-  return (
-    (fase.type === 'oferta' && fase.cola[0] === player) ||
-    (fase.type === 'botar' && fase.jugador === player)
-  );
+/** Te toca usar la carta de la mesa o pagar: es cuando se puede armar un juego. */
+function esMiTurno(vista: Vista): boolean {
+  const { fase, yo } = vista.view;
+  return ofertaMia(vista) || (fase.type === 'botar' && fase.jugador === yo);
 }
 
 /**
@@ -125,15 +118,14 @@ function esMiTurno(state: ConquianState, player: number): boolean {
  * `validActions`; si no hay ninguna, explica por qué.
  */
 export function alSoltar(
-  state: ConquianState,
-  player: number,
+  vista: Vista,
   arrastrado: Arrastrado,
   destino: Destino | null,
   sel: Seleccion,
 ): Resultado {
   // Sacar la carta del mazo la voltea, se suelte donde se suelte: nunca entra a la mano.
   if (arrastrado.tipo === 'mazo') {
-    const voltear = conquian.validActions(state, player).find((a) => a.type === 'voltear');
+    const voltear = vista.acciones.find((a) => a.type === 'voltear');
     return voltear
       ? { tipo: 'jugar', accion: voltear }
       : { tipo: 'nada', motivo: 'Espera tu turno para sacar del mazo.' };
@@ -147,7 +139,7 @@ export function alSoltar(
       : { tipo: 'desarmar', pieza: arrastrado.pieza };
   }
 
-  const acciones = conquian.validActions(state, player);
+  const { acciones } = vista;
   /** Busca una jugada con exactamente esas cartas de la mano y ese desmoche. */
   const buscar = (
     cumple: (a: ConquianAction) => boolean,
@@ -164,9 +156,7 @@ export function alSoltar(
   const jugar = (accion: ConquianAction | undefined, motivo: string): Resultado =>
     accion ? { tipo: 'jugar', accion } : { tipo: 'nada', motivo };
   const armar = (pieza: Pieza): Resultado =>
-    esMiTurno(state, player)
-      ? { tipo: 'armar', pieza }
-      : { tipo: 'nada', motivo: 'Espera tu turno.' };
+    esMiTurno(vista) ? { tipo: 'armar', pieza } : { tipo: 'nada', motivo: 'Espera tu turno.' };
 
   if (arrastrado.tipo === 'mano') {
     const { cardId } = arrastrado;
@@ -184,7 +174,7 @@ export function alSoltar(
       case 'muertas':
         return jugar(
           acciones.find((a) => a.type === 'botar' && a.cardId === cardId),
-          state.fase.type === 'intercambio'
+          vista.view.fase.type === 'intercambio'
             ? 'Para pasarla, suéltala en el lugar marcado junto a tu mano.'
             : 'Al centro solo se suelta la carta que vas a botar.',
         );
@@ -209,15 +199,10 @@ export function alSoltar(
   }
 
   // La carta de la mesa.
-  if (state.fase.type !== 'oferta' || state.fase.cola[0] !== player) {
+  if (!ofertaMia(vista)) {
     return { tipo: 'nada', motivo: null };
   }
   switch (destino.tipo) {
-    case 'muertas':
-      return jugar(
-        acciones.find((a) => a.type === 'pasar'),
-        'Ahora no puedes pasar.',
-      );
     case 'armado':
       return armar(arrastrado);
     case 'juego': {
@@ -231,10 +216,21 @@ export function alSoltar(
         buscar((a) => a.type === 'tomar' && a.juegoId === undefined, sel.cartas),
         'Esas cartas no forman juego con la de la mesa.',
       );
+    // Ya está sobre las muertas: para pasar se toca (ver `alTocarMesa`).
+    case 'muertas':
     case 'centro':
     case 'pasada':
       return { tipo: 'nada', motivo: null };
   }
+}
+
+/** Tocar la carta en juego cuando es para ti: no te sirve, pasa al siguiente. */
+export function alTocarMesa(vista: Vista): Resultado {
+  if (obligado(vista)) {
+    return { tipo: 'nada', motivo: 'Esa carta entra en tu juego: tienes que tomarla.' };
+  }
+  const pasar = vista.acciones.find((a) => a.type === 'pasar');
+  return pasar ? { tipo: 'jugar', accion: pasar } : { tipo: 'nada', motivo: null };
 }
 
 /** Mueve `cardId` a la posición `indice` dentro del orden mostrado. */

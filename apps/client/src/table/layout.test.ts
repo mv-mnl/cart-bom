@@ -178,11 +178,59 @@ describe('el mazo', () => {
     expect(mazo(s)?.pista).toBe(false);
   });
 
-  it('debajo de la de arriba queda el resto de la pila', () => {
-    const cartas = escenaDe(tocaVoltear).cartas;
-    const fondo = cartas.findIndex((c) => c.key === 'mazo-fondo');
-    expect(fondo).toBeGreaterThanOrEqual(0);
-    expect(fondo).toBeLessThan(cartas.findIndex((c) => c.key === 'mazo'));
+  it('se ve como un montón de 3, con la de arriba encima de todas', () => {
+    const keys = escenaDe(tocaVoltear).cartas.map((c) => c.key);
+    const capas = keys.filter((k) => k === 'mazo' || k.startsWith('mazo-fondo'));
+    expect(capas).toEqual(['mazo-fondo-2', 'mazo-fondo-1', 'mazo']);
+  });
+
+  it('con menos de 3 cartas en el mazo se ven solo las que hay', () => {
+    const casiVacio = { ...tocaVoltear, mazo: tocaVoltear.mazo.slice(0, 2) };
+    const capas = escenaDe(casiVacio).cartas.filter((c) => c.key.startsWith('mazo'));
+    expect(capas).toHaveLength(2);
+  });
+});
+
+describe('las muertas', () => {
+  /** Un estado con `n` muertas tomadas del mazo. */
+  const conMuertas = (n: number): ConquianState => {
+    const s = pasan(inicio, [0, 1, 2]);
+    return { ...s, muertas: s.mazo.slice(0, n), mazo: s.mazo.slice(n) };
+  };
+  const muertasEn = (s: ConquianState) =>
+    escenaDe(s).cartas.filter((c) => s.muertas.some((m) => m.id === c.key));
+
+  it('solo hay dos montones: la carta en juego va encima de las muertas', () => {
+    const conOferta = conquian.apply(conMuertas(4), { type: 'voltear', player: 0 });
+    const cartas = escenaDe(conOferta).cartas;
+    const enJuego = cartas.findIndex(
+      (c) => conOferta.fase.type === 'oferta' && c.key === conOferta.fase.carta.id,
+    );
+    const muertas = muertasEn(conOferta);
+    const mazo = cartas.find((c) => c.key === 'mazo');
+    for (const m of muertas) {
+      expect(Math.abs(m.x - (cartas[enJuego]?.x ?? 0))).toBeLessThan(30);
+      expect(cartas.indexOf(m)).toBeLessThan(enJuego);
+      expect(m.muerta).toBe(true);
+    }
+    expect(Math.abs((mazo?.x ?? 0) - (cartas[enJuego]?.x ?? 0))).toBeGreaterThan(80);
+  });
+
+  it('se ven las últimas 3, la más nueva encima', () => {
+    const s = conMuertas(7);
+    expect(muertasEn(s).map((c) => c.key)).toEqual(s.muertas.slice(-3).map((m) => m.id));
+  });
+
+  it('cada carta queda donde cayó aunque lleguen más', () => {
+    const antes = muertasEn(conMuertas(5)).at(-1);
+    const despues = muertasEn(conMuertas(6)).find((c) => c.key === antes?.key);
+    expect(despues).toMatchObject({ x: antes?.x, y: antes?.y, rotation: antes?.rotation });
+  });
+
+  it('el montón se desordena más mientras avanza la partida', () => {
+    const giro = (s: ConquianState) =>
+      muertasEn(s).reduce((t, c) => t + Math.abs(c.rotation), 0) / muertasEn(s).length;
+    expect(giro(conMuertas(14))).toBeGreaterThan(giro(conMuertas(3)));
   });
 });
 
@@ -199,6 +247,9 @@ describe('textoOferta', () => {
 
   it('si es para ti, te pregunta', () => {
     expect(textoOferta(fase('mazo', 1, 0), 0, nombres)).toBe('¿Te sirve?');
+  });
+  it('si entra en un juego tuyo, avisa que te entra', () => {
+    expect(textoOferta(fase('botada', 1, 0), 0, nombres, true)).toBe('¡Te entra!');
   });
   it('si la volteó quien la decide, dice quién la volteó', () => {
     expect(textoOferta(fase('mazo', 1, 1), 0, nombres)).toBe('Volteó Ana');

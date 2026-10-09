@@ -1,7 +1,7 @@
 import { conquian } from '@cartas/conquian';
 import { describe, expect, it } from 'vitest';
 import { DURACION_INTERCAMBIO } from './anim/tiempos';
-import { esperaAlHumano, pausaIA } from './store';
+import { HUMANO, esperaAlHumano, pausaIA, usePartida } from './store';
 
 const inicio = conquian.setup(3, 'cola');
 const pasa = (s: typeof inicio, p: number) =>
@@ -25,5 +25,23 @@ describe('cola de la computadora en el intercambio', () => {
     const voltear = pasa(pasa(pasa(inicio, 0), 1), 2);
     const oferta = conquian.apply(voltear, { type: 'voltear', player: 0 });
     expect(pausaIA(voltear, voltear)).toBeLessThan(pausaIA(oferta, voltear));
+  });
+});
+
+describe('partida local', () => {
+  it('la interfaz recibe solo la vista del humano, con la última jugada', () => {
+    const { nueva, jugar, salir } = usePartida.getState();
+    nueva(2);
+    const inicial = usePartida.getState().vista;
+    expect(inicial?.view.yo).toBe(HUMANO);
+    expect(inicial?.jugada).toBeNull();
+    const pasarCarta = inicial?.acciones.find((a) => a.type === 'pasarCarta');
+    if (!pasarCarta) throw new Error('sin jugada de intercambio');
+    jugar(pasarCarta);
+    const { vista, local } = usePartida.getState();
+    expect(vista?.jugada).toEqual({ type: 'pasarCarta', player: HUMANO });
+    expect(vista?.view).toEqual(local && conquian.view(local, HUMANO));
+    salir();
+    expect(usePartida.getState().vista).toBeNull();
   });
 });

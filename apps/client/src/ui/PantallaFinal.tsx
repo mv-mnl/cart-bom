@@ -1,17 +1,17 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { entradaPanel } from '../anim/victoria';
-import { HUMANO, usePartida } from '../store';
+import { usePartida } from '../store';
 import { resumenFinal } from './final';
 
 /** Panel al terminar la partida: quién ganó, cuánto bajó cada quien y qué hacer ahora. */
 export function PantallaFinal() {
-  const state = usePartida((s) => s.state);
+  const vista = usePartida((s) => s.vista);
   const nombres = usePartida((s) => s.nombres);
   const verMesa = usePartida((s) => s.verMesa);
   const { nueva, salir, cerrarFinal } = usePartida.getState();
   const resumen = useMemo(
-    () => (state ? resumenFinal(state, nombres, HUMANO) : null),
-    [state, nombres],
+    () => (vista ? resumenFinal(vista.view, nombres) : null),
+    [vista, nombres],
   );
   const panel = useRef<HTMLDivElement>(null);
   const visible = resumen !== null && !verMesa;
@@ -25,7 +25,7 @@ export function PantallaFinal() {
     };
   }, [visible]);
 
-  if (!visible || !state) return null;
+  if (!visible || !vista) return null;
   const { tipo, detalle, meta, filas } = resumen;
 
   return (
@@ -54,7 +54,7 @@ export function PantallaFinal() {
           ))}
         </ol>
         <div className="acciones-final">
-          <button className="boton-juego" onClick={() => nueva(state.jugadores.length)}>
+          <button className="boton-juego" onClick={() => nueva(vista.view.jugadores.length)}>
             {tipo === 'ganaste' ? 'Otra partida' : 'Revancha'}
           </button>
           <div className="fila">

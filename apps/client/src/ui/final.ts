@@ -1,4 +1,5 @@
-import { conquian, type ConquianState } from '@cartas/conquian';
+import type { ConquianView } from '@cartas/conquian';
+import { bajadasDe, resultado as resultadoDe } from '../vista';
 
 export interface FilaFinal {
   readonly nombre: string;
@@ -19,21 +20,18 @@ export interface ResumenFinal {
 }
 
 /** Qué se muestra en la pantalla final, o null si la partida sigue. */
-export function resumenFinal(
-  state: ConquianState,
-  nombres: readonly string[],
-  yo: number,
-): ResumenFinal | null {
-  const resultado = conquian.result(state);
+export function resumenFinal(view: ConquianView, nombres: readonly string[]): ResumenFinal | null {
+  const resultado = resultadoDe(view);
   if (!resultado) return null;
-  const meta = state.config.cartasPorJugador + 1;
+  const { yo } = view;
+  const meta = view.config.cartasPorJugador + 1;
   const ganadores = resultado.type === 'ganador' ? resultado.ganadores : [];
   const nombre = (p: number) => nombres[p] ?? `Jugador ${p + 1}`;
 
-  const filas = state.jugadores
-    .map((j, p) => ({
+  const filas = view.jugadores
+    .map((_, p) => ({
       nombre: nombre(p),
-      bajadas: j.juegos.reduce((n, juego) => n + juego.cartas.length, 0),
+      bajadas: bajadasDe(view, p),
       gano: ganadores.includes(p),
       esHumano: p === yo,
     }))

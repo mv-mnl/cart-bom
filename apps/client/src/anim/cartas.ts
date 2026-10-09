@@ -274,24 +274,27 @@ export function empujarCarta(
 const ARCO_TIRO = 0.45;
 
 /**
- * Nadie quiso la carta: se tira a las muertas. Sube en arco dando una vuelta completa
- * y cae en la pila con un rebote. Si se está volteando, termina y luego va.
+ * Nadie quiso la carta: se tira a las muertas, que están justo debajo. Salta dando una
+ * vuelta completa y cae chueca en el montón con un rebote. Si se está volteando, termina y
+ * luego va.
  */
 export function tirarCarta(
   sprite: Sprite,
   destino: Pose,
   opciones: OpcionesMovimiento = {},
 ): gsap.core.Timeline | null {
-  const distancia = Math.hypot(destino.x - sprite.x, destino.y - sprite.y);
-  if (protegida(sprite) || movimientoReducido() || distancia < DISTANCIA_VUELO) {
+  if (protegida(sprite) || movimientoReducido()) {
     llevarA(sprite, destino, opciones);
     return null;
   }
+  const distancia = Math.hypot(destino.x - sprite.x, destino.y - sprite.y);
   detener(sprite);
   const desde = { x: sprite.x, y: sprite.y, rotation: sprite.rotation, escala: sprite.scale.x };
   const cx = (desde.x + destino.x) / 2;
-  const cy = Math.min(desde.y, destino.y) - distancia * ARCO_TIRO;
-  const lado = destino.x >= desde.x ? 1 : -1;
+  // Aunque caiga casi en el mismo lugar, salta: medio alto de carta como mínimo.
+  const salto = Math.max(distancia * ARCO_TIRO, sprite.height * 0.5);
+  const cy = Math.min(desde.y, destino.y) - salto;
+  const lado = destino.rotation >= desde.rotation ? 1 : -1;
   const viaje = Math.max(0.45, duracionVuelo(distancia, 0.3));
   const tl = timelineSobre(sprite, destino, opciones);
   const avance = { t: 0 };

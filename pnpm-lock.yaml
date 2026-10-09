@@ -38,6 +38,9 @@ importers:
       '@cartas/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@cartas/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@pixi/react':
         specifier: 8.0.5
         version: 8.0.5(@types/react@19.3.0)(pixi.js@8.22.0)(react@19.3.0)
@@ -83,6 +86,12 @@ importers:
       '@cartas/core':
         specifier: workspace:*
         version: link:../../core
+
+  packages/shared:
+    dependencies:
+      '@cartas/core':
+        specifier: workspace:*
+        version: link:../core
 
 packages:
 

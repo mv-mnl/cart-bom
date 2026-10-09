@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { forzarMovimientoReducido } from '../anim/cartas';
 import { prepararEscena, type Preparacion } from '../anim/escena';
 import { sinSonido } from '../audio/sonidos';
-import { cancelarIA, conquianPara, pausaIA, usePartida } from '../store';
+import { cancelarIA, conquianPara, enLocal, pausaIA, usePartida } from '../store';
 import { ARMADO_VACIO } from './arrastre';
 import { ESCENARIOS, siguienteJugada, type Preparado } from './escenarios';
 import { SIN_SELECCION } from './opciones';
@@ -29,7 +29,7 @@ function poner(state: ConquianState, modo: Preparacion) {
   prepararEscena(modo);
   sinSonido(() =>
     usePartida.setState({
-      state,
+      ...enLocal(state),
       nombres: nombresPara(state.jugadores.length),
       seleccion: SIN_SELECCION,
       armado: ARMADO_VACIO,
@@ -41,13 +41,12 @@ function poner(state: ConquianState, modo: Preparacion) {
 
 /** Aplica una jugada como si viniera de la partida (con su sonido). */
 function aplicar(nuevo: ConquianState, accion: ConquianAction) {
-  usePartida.setState((s) => ({
-    state: nuevo,
-    ultimaJugada: { accion, n: (s.ultimaJugada?.n ?? 0) + 1 },
+  usePartida.setState({
+    ...enLocal(nuevo, accion),
     seleccion: SIN_SELECCION,
     armado: ARMADO_VACIO,
     aviso: null,
-  }));
+  });
 }
 
 /** Cuadros por segundo reales del navegador. */
@@ -135,7 +134,7 @@ export function Laboratorio() {
       p.pasos.forEach((accion, i) => {
         timers.current.push(
           setTimeout(() => {
-            const ahora = usePartida.getState().state;
+            const ahora = usePartida.getState().local;
             // Si tocaste la mesa, la partida siguió por su lado: el escenario se detiene.
             if (ahora !== esperado || !ahora) {
               detener();
@@ -191,7 +190,7 @@ export function Laboratorio() {
     let vivo = true;
     const paso = () => {
       if (!vivo) return;
-      const state = usePartida.getState().state;
+      const state = usePartida.getState().local;
       if (!state || juego.result(state)) {
         despues(state ? PAUSA_FINAL_MS : 0, () => {
           poner(juego.setup(jugadores, nuevaSemilla()), 'desdeOrigen');

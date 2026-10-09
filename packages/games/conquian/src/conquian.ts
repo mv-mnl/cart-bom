@@ -230,6 +230,9 @@ function pasar(state: ConquianState, player: number): ConquianState {
   const { fase } = state;
   if (fase.type !== 'oferta') throw new Error('no hay carta ofrecida');
   exigirTurno(state, player);
+  if (obligadoATomar(state, player)) {
+    throw new Error('la carta entra en un juego tuyo: tienes que tomarla');
+  }
   const cola = fase.cola.slice(1);
   if (cola.length > 0) return { ...state, fase: { ...fase, cola } };
   // Nadie la quiso: queda muerta y sigue el turno.
@@ -307,6 +310,14 @@ function* subconjuntos<T>(items: readonly T[], minimo: number): Generator<T[]> {
 
 const ids = (cartas: readonly Card[]) => cartas.map((c) => c.id);
 
+/** Tomar la carta de la mesa para agregarla a un juego propio ya bajado. */
+const entraEnSuJuego = (a: ConquianAction) => a.type === 'tomar' && a.juegoId !== undefined;
+
+/** La carta de la mesa entra en un juego que `player` ya bajó: no la puede dejar pasar. */
+export function obligadoATomar(state: ConquianState, player: number): boolean {
+  return state.fase.type === 'oferta' && validActions(state, player).some(entraEnSuJuego);
+}
+
 function validActions(state: ConquianState, player: number): ConquianAction[] {
   const { fase } = state;
   const jugador = state.jugadores[player];
@@ -366,7 +377,8 @@ function validActions(state: ConquianState, player: number): ConquianAction[] {
   }
 
   if (fase.type !== 'oferta') return acciones;
-  acciones.push({ type: 'pasar', player });
+  // Si la carta entra en un juego que ya bajó, está obligado a tomarla.
+  if (!acciones.some(entraEnSuJuego)) acciones.push({ type: 'pasar', player });
   return acciones;
 }
 
@@ -417,6 +429,7 @@ function faseView(state: ConquianState, player: number): FaseView {
 
 function view(state: ConquianState, player: number): ConquianView {
   return {
+    config: state.config,
     yo: player,
     mano: jugadorDe(state, player).mano,
     jugadores: state.jugadores.map((j) => ({ cartasEnMano: j.mano.length, juegos: j.juegos })),

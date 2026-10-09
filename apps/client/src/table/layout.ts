@@ -3,6 +3,7 @@ import type { Card } from '@cartas/core';
 import { ARMADO_VACIO, type Armado, type Destino, type Pieza } from '../ui/arrastre';
 import type { Seleccion } from '../ui/opciones';
 import { VELOCIDAD_INTERCAMBIO } from '../anim/tiempos';
+import { enTurno } from '../vista';
 import { CARTA_H, CARTA_W, DORSO, claveTextura } from './texturas';
 
 export type Toque =
@@ -30,6 +31,8 @@ export interface SpriteCarta {
   readonly alpha: number;
   /** En gris: la carta de la mesa mientras la decide otro jugador. */
   readonly apagada?: boolean;
+  /** Más oscura: una carta del montón de muertas. */
+  readonly muerta?: boolean;
   readonly toque: Toque | null;
   /** Si la carta aparece de nuevo en pantalla, de dónde llega (para animarla). */
   readonly origen?: Origen;
@@ -43,13 +46,38 @@ export interface SpriteCarta {
   readonly gesto?: 'tirar';
 }
 
+/** Cuántas cartas se ven encimadas en el mazo y en las muertas. */
+const CAPAS_MONTON = 3;
+/** Con cuántas muertas los montones llegan a su desorden máximo. */
+const MUERTAS_DESORDEN = 12;
+
+/** Número entre 0 y 1 que siempre sale igual para el mismo texto. */
+function azarFijo(texto: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < texto.length; i++) h = Math.imul(h ^ texto.charCodeAt(i), 16777619);
+  return ((h >>> 0) % 10000) / 10000;
+}
+
+/**
+ * Qué tan chueca queda una carta en un montón: un corrimiento y un giro que dependen solo
+ * de `semilla` (no cambian al redibujar). `cuanto` va de 0 (derecha) a 1 (muy chueca).
+ */
+export function desorden(semilla: string, cuanto: number, w: number) {
+  return {
+    dx: (azarFijo(`${semilla}x`) - 0.5) * w * 0.22 * cuanto,
+    dy: (azarFijo(`${semilla}y`) - 0.5) * w * 0.22 * cuanto,
+    rotation: (azarFijo(`${semilla}r`) - 0.5) * 0.6 * cuanto,
+  };
+}
+
 /** Arriba de la carta de la mesa: para ti, o quién la volteó o quién la está decidiendo. */
 export function textoOferta(
   fase: Extract<FaseView, { type: 'oferta' }>,
   yo: number,
   nombres: readonly string[],
+  obligado = false,
 ): string {
-  if (fase.turno === yo) return '¿Te sirve?';
+  if (fase.turno === yo) return obligado ? '¡Te entra!' : '¿Te sirve?';
   const nombre = nombres[fase.turno] ?? '';
   return fase.origen === 'mazo' && fase.de === fase.turno ? `Volteó ${nombre}` : `Para ${nombre}`;
 }
@@ -140,6 +168,8 @@ export interface OpcionesLayout {
   readonly pistas?: ReadonlySet<string>;
   /** Zonas (por clave) donde se puede soltar lo que se está arrastrando. */
   readonly destacadas?: ReadonlySet<string>;
+  /** La carta de la mesa entra en un juego tuyo: tienes que tomarla. */
+  readonly obligado?: boolean;
 }
 
 const VACIO: ReadonlySet<string> = new Set();
@@ -162,13 +192,6 @@ const DORADO = 0xffd54a;
 const BLANCO = 0xf2f2f2;
 const GRIS = 0xbfd8c8;
 
-/** Quién tiene que actuar ahora, según la vista. */
-export function enTurno(view: ConquianView): number | null {
-  if (view.fase.type === 'oferta') return view.fase.turno;
-  if (view.fase.type === 'botar' || view.fase.type === 'voltear') return view.fase.jugador;
-  return null;
-}
-
 /**
  * Calcula dónde va cada carta. Función pura: misma vista y tamaño, misma escena.
  * El jugador local siempre está abajo; los demás siguen el orden de turno hacia la derecha.
@@ -186,6 +209,7 @@ export function layoutMesa(
     armado = ARMADO_VACIO,
     zonaArmado = false,
     armadoActivo = false,
+    obligado = false,
   } = opciones;
   const pistas = opciones.pistas ?? VACIO;
   const destacadas = opciones.destacadas ?? VACIO;
@@ -542,65 +566,64 @@ export function layoutMesa(
     limiteArriba + h * 0.8,
   );
   const meToca = view.fase.type === 'voltear' && view.fase.jugador === view.yo;
-  // Debajo de la de arriba se ve el resto del mazo, para que al sacarla quede la pila.
-  if (view.mazo > 1) {
+  // Solo dos montones: el mazo y las muertas. La carta en juego va encima de las muertas.
+  const xMazo = cx - w * 0.85;
+  const xPila = cx + w * 0.85;
+  // El mazo se ve como un montón de hasta 3 cartas; la de arriba es la que se saca.
+  // Mientras más avanza la partida, más chueco queda.
+  const progreso = Math.min(1, view.muertas.length / MUERTAS_DESORDEN);
+  const capasMazo = Math.min(CAPAS_MONTON, view.mazo);
+  for (let capa = capasMazo - 1; capa >= 0; capa--) {
+    const arriba = capa === 0;
+    const d = desorden(`mazo-${view.mazo}-${capa}`, (0.3 + 0.7 * progreso) * 0.6, w);
     cartas.push({
-      key: 'mazo-fondo',
+      key: arriba ? 'mazo' : `mazo-fondo-${capa}`,
       textura: DORSO,
-      x: cx - w * 1.5 + w * 0.04,
-      y: cy + w * 0.04,
-      rotation: 0,
+      x: xMazo + capa * w * 0.05 + d.dx,
+      y: cy + capa * w * 0.05 + d.dy,
+      rotation: d.rotation,
       escala,
       seleccionada: false,
-      pista: false,
+      pista: arriba && meToca,
       alpha: 1,
-      toque: null,
-    });
-  }
-  if (view.mazo > 0) {
-    cartas.push({
-      key: 'mazo',
-      textura: DORSO,
-      x: cx - w * 1.5,
-      y: cy,
-      rotation: 0,
-      escala,
-      seleccionada: false,
-      pista: meToca,
-      alpha: 1,
-      toque: meToca ? { tipo: 'mazo' } : null,
+      toque: arriba && meToca ? { tipo: 'mazo' } : null,
     });
   }
   etiquetas.push({
     key: 'mazo-n',
     texto: meToca ? 'Saca una' : `Mazo ${view.mazo}`,
-    x: cx - w * 1.5,
+    x: xMazo,
     y: cy + h * 0.66,
     color: meToca ? DORADO : BLANCO,
     tamano: Math.max(12, w * 0.19),
   });
 
-  const muerta = view.muertas.at(-1);
-  if (muerta) {
+  // Las muertas se amontonan chuecas (se ven las últimas 3); cada una cae más desordenada
+  // que la anterior, y queda donde cayó.
+  const primeraVisible = Math.max(0, view.muertas.length - CAPAS_MONTON);
+  view.muertas.slice(primeraVisible).forEach((muerta, i) => {
+    const orden = primeraVisible + i;
+    const d = desorden(muerta.id, 0.25 + 0.75 * Math.min(1, orden / MUERTAS_DESORDEN), w);
     cartas.push({
       key: muerta.id,
       textura: claveTextura(muerta.id),
-      x: cx + w * 1.5,
-      y: cy,
-      rotation: 0,
+      x: xPila + d.dx,
+      y: cy + d.dy,
+      rotation: d.rotation,
       escala,
       seleccionada: false,
       pista: false,
-      alpha: 0.55,
+      alpha: 1,
+      muerta: true,
       toque: null,
       origen: { desde: 'centro' },
       gesto: 'tirar',
     });
-  }
+  });
   etiquetas.push({
     key: 'muertas-n',
     texto: `Muertas ${view.muertas.length}`,
-    x: cx + w * 1.5,
+    x: xPila,
     y: cy + h * 0.66,
     color: BLANCO,
     tamano: Math.max(12, w * 0.19),
@@ -613,7 +636,7 @@ export function layoutMesa(
       cartas.push({
         key: view.fase.carta.id,
         textura: claveTextura(view.fase.carta.id),
-        x: cx,
+        x: xPila,
         y: cy,
         rotation: 0,
         escala: escala * 1.08,
@@ -632,8 +655,8 @@ export function layoutMesa(
     }
     etiquetas.push({
       key: 'oferta-para',
-      texto: textoOferta(view.fase, view.yo, nombres),
-      x: cx,
+      texto: textoOferta(view.fase, view.yo, nombres, obligado),
+      x: xPila,
       y: cy - h * 0.72,
       color: paraMi ? DORADO : BLANCO,
       tamano: Math.max(13, w * 0.22),
@@ -641,21 +664,21 @@ export function layoutMesa(
   }
 
   // Zonas para soltar: los juegos propios y la zona de armado ya se agregaron;
-  // luego las muertas, el centro y tu mano.
+  // luego las muertas (el montón donde está la carta en juego), el centro y tu mano.
   zonas.push({
     clave: 'muertas',
     destino: { tipo: 'muertas' },
-    x: cx + w * 0.75,
+    x: xPila - w * 0.85,
     y: cy - h * 0.8,
-    ancho: w * 1.65,
+    ancho: w * 1.7,
     alto: h * 1.6,
   });
   zonas.push({
     clave: 'centro',
     destino: { tipo: 'centro' },
-    x: cx - w * 2.4,
+    x: cx - w * 2.1,
     y: cy - h * 0.8,
-    ancho: w * 3.15,
+    ancho: w * 4.2,
     alto: h * 1.6,
   });
   zonas.push({
@@ -765,8 +788,8 @@ export function layoutMesa(
   });
 
   const anclas: Anclas = {
-    mazo: { x: cx - w * 1.5, y: cy },
-    centro: { x: cx, y: cy },
+    mazo: { x: xMazo, y: cy },
+    centro: { x: xPila, y: cy },
     jugadores: anclasJugadores,
     pasadas,
   };

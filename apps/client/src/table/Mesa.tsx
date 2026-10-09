@@ -1,15 +1,15 @@
-import { conquian, type ConquianState } from '@cartas/conquian';
 import { Application, extend, useApplication } from '@pixi/react';
 import { Container, Graphics, Sprite, Text, Texture, type FederatedPointerEvent } from 'pixi.js';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { colocarCarta, moverCarta, olvidarCarta } from '../anim/cartas';
 import { animarEscena, sacarDelMazoEn } from '../anim/escena';
 import { celebrar } from '../anim/victoria';
-import { HUMANO, usePartida, type ModoControl } from '../store';
-import { alSoltar, reordenar, type Arrastrado } from '../ui/arrastre';
+import { usePartida, type ModoControl } from '../store';
+import { alSoltar, alTocarMesa, reordenar, type Arrastrado } from '../ui/arrastre';
 import { resumenFinal } from '../ui/final';
 import { sugerencias } from '../ui/opciones';
 import { ordenarMano } from '../ui/orden';
+import { enTurno, obligado, type Vista } from '../vista';
 import {
   layoutMesa,
   zonaEn,
@@ -26,6 +26,8 @@ const COLOR_SELECCION = 0xfff0a0;
 const COLOR_PISTA = 0xd4ffcc;
 /** La carta de la mesa mientras la decide otro jugador. */
 const COLOR_APAGADA = 0x8a8a8a;
+/** Las muertas, debajo de la carta en juego: más oscuras para que no se confundan. */
+const COLOR_MUERTA = 0x6a6a6a;
 /** Distancia (px) que hay que mover el dedo para que cuente como arrastre y no como toque. */
 const UMBRAL_ARRASTRE = 8;
 const NADA: ReadonlySet<string> = new Set();
@@ -44,13 +46,7 @@ interface ArrastreActivo {
 const puedeTocar = (modo: ModoControl) => modo !== 'arrastrar';
 const puedeArrastrar = (modo: ModoControl) => modo !== 'botones';
 
-function esMiTurno(state: ConquianState): boolean {
-  const { fase } = state;
-  return (
-    (fase.type === 'oferta' && fase.cola[0] === HUMANO) ||
-    ((fase.type === 'botar' || fase.type === 'voltear') && fase.jugador === HUMANO)
-  );
-}
+const esMiTurno = ({ view }: Vista) => enTurno(view) === view.yo;
 
 function arrastradoDe(toque: Toque): Arrastrado {
   switch (toque.tipo) {
@@ -73,27 +69,33 @@ function tocar(toque: Toque) {
   // Tocar una carta de la zona de armado la regresa, en cualquier modo.
   if (toque.tipo === 'armado') return desarmar(toque.pieza);
   // Tocar el mazo cuando te toca voltea la de arriba, en cualquier modo.
-  if (toque.tipo === 'mazo')
-    return usePartida.getState().jugar({ type: 'voltear', player: HUMANO });
+  if (toque.tipo === 'mazo') {
+    const { vista, jugar } = usePartida.getState();
+    const voltear = vista?.acciones.find((a) => a.type === 'voltear');
+    if (voltear) jugar(voltear);
+    return;
+  }
+  // Tocar la carta en juego es "no me sirve": pasa al siguiente, en cualquier modo.
+  if (toque.tipo === 'mesa') {
+    const { vista, jugar } = usePartida.getState();
+    const r = vista ? alTocarMesa(vista) : null;
+    if (r?.tipo === 'jugar') jugar(r.accion);
+    else if (r?.tipo === 'nada' && r.motivo) avisar(r.motivo);
+    return;
+  }
   if (!puedeTocar(modo)) {
     if (toque.tipo !== 'mano') avisar('Arrastra la carta a donde la quieras poner.');
     return;
   }
   if (toque.tipo === 'mano') toggleCarta(toque.cardId);
-  else if (toque.tipo === 'desmoche') {
-    toggleDesmoche({ juegoId: toque.juegoId, cardId: toque.cardId });
-  } else if (modo === 'botones') {
-    avisar('Selecciona las cartas de tu mano que van con ella y usa los botones de abajo.');
-  } else {
-    avisar('Arrastra esta carta a uno de tus juegos o a la zona de armado.');
-  }
+  else toggleDesmoche({ juegoId: toque.juegoId, cardId: toque.cardId });
 }
 
 /** Se soltó una carta arrastrada en (x, y): juega, arma, reordena o explica por qué no. */
 function soltar(escena: EscenaMesa, toque: Toque, x: number, y: number) {
-  const { state, seleccion, jugar, avisar, reordenarMano, armar, desarmar } = usePartida.getState();
-  if (!state) return;
-  const r = alSoltar(state, HUMANO, arrastradoDe(toque), zonaEn(escena, x, y), seleccion);
+  const { vista, seleccion, jugar, avisar, reordenarMano, armar, desarmar } = usePartida.getState();
+  if (!vista) return;
+  const r = alSoltar(vista, arrastradoDe(toque), zonaEn(escena, x, y), seleccion);
   switch (r.tipo) {
     case 'jugar':
       return jugar(r.accion);
@@ -120,13 +122,13 @@ function soltar(escena: EscenaMesa, toque: Toque, x: number, y: number) {
 
 /** Zonas donde sí se puede soltar lo que se está arrastrando (para resaltarlas). */
 function zonasValidas(escena: EscenaMesa, toque: Toque): Set<string> {
-  const { state, seleccion } = usePartida.getState();
+  const { vista, seleccion } = usePartida.getState();
   const validas = new Set<string>();
   // La carta del mazo se voltea donde la sueltes: no hay un lugar que marcar.
-  if (!state || toque.tipo === 'mazo') return validas;
+  if (!vista || toque.tipo === 'mazo') return validas;
   for (const zona of escena.zonas) {
     if (zona.clave === 'mano') continue;
-    const r = alSoltar(state, HUMANO, arrastradoDe(toque), zona.destino, seleccion);
+    const r = alSoltar(vista, arrastradoDe(toque), zona.destino, seleccion);
     if (r.tipo === 'jugar' || r.tipo === 'armar') validas.add(zona.clave);
   }
   return validas;
@@ -136,9 +138,9 @@ function zonasValidas(escena: EscenaMesa, toque: Toque): Set<string> {
  * Cartas y juego de la mejor jugada sugerida (ayudas en modo arrastrar). Solo una:
  * si se marcaran varias a la vez, juntarlas todas no formaría ningún juego.
  */
-function pistasDe(state: ConquianState): Set<string> {
+function pistasDe(vista: Vista): Set<string> {
   const pistas = new Set<string>();
-  for (const { accion } of sugerencias(state, HUMANO, 1)) {
+  for (const { accion } of sugerencias(vista, 1)) {
     if (!('cardIds' in accion)) continue;
     for (const id of accion.cardIds) pistas.add(id);
     if (accion.desmoche) pistas.add(accion.desmoche.cardId);
@@ -194,7 +196,7 @@ function Escena({ ancho, alto }: { ancho: number; alto: number }) {
     [app, isInitialised],
   );
 
-  const state = usePartida((s) => s.state);
+  const vista = usePartida((s) => s.vista);
   const nombres = usePartida((s) => s.nombres);
   const seleccion = usePartida((s) => s.seleccion);
   const ordenMano = usePartida((s) => s.ordenMano);
@@ -206,22 +208,23 @@ function Escena({ ancho, alto }: { ancho: number; alto: number }) {
   const [destacadas, setDestacadas] = useState<ReadonlySet<string>>(NADA);
 
   const escena = useMemo(() => {
-    if (!state) return null;
-    const view = conquian.view(state, HUMANO);
-    const mano = ordenarMano(view.mano, ordenMano, state.config.baraja.valores, ordenManual);
-    const miTurno = esMiTurno(state);
+    if (!vista) return null;
+    const { view } = vista;
+    const mano = ordenarMano(view.mano, ordenMano, view.config.baraja.valores, ordenManual);
+    const miTurno = esMiTurno(vista);
     return layoutMesa({ ...view, mano }, ancho, alto, {
       sel: seleccion,
       nombres,
-      meta: state.config.cartasPorJugador + 1,
+      meta: view.config.cartasPorJugador + 1,
       armado,
       zonaArmado: puedeArrastrar(modo),
       armadoActivo: miTurno,
-      pistas: ayudas && modo === 'arrastrar' && miTurno ? pistasDe(state) : NADA,
+      pistas: ayudas && modo === 'arrastrar' && miTurno ? pistasDe(vista) : NADA,
       destacadas,
+      obligado: obligado(vista),
     });
   }, [
-    state,
+    vista,
     ancho,
     alto,
     seleccion,
@@ -281,8 +284,8 @@ function Escena({ ancho, alto }: { ancho: number; alto: number }) {
   // Al terminar la partida: letrero y, si ganaste, rayos y confeti. El panel lo pone React.
   const verMesa = usePartida((s) => s.verMesa);
   const resumen = useMemo(
-    () => (state && !verMesa ? resumenFinal(state, nombres, HUMANO) : null),
-    [state, nombres, verMesa],
+    () => (vista && !verMesa ? resumenFinal(vista.view, nombres) : null),
+    [vista, nombres, verMesa],
   );
   const titulo = resumen?.titulo ?? null;
   const tipoFinal = resumen?.tipo ?? null;
@@ -401,7 +404,9 @@ function Escena({ ancho, alto }: { ancho: number; alto: number }) {
                 ? COLOR_PISTA
                 : c.apagada
                   ? COLOR_APAGADA
-                  : 0xffffff
+                  : c.muerta
+                    ? COLOR_MUERTA
+                    : 0xffffff
           }
           eventMode={c.toque ? 'static' : 'none'}
           cursor={c.toque ? cursor(c.toque) : 'default'}

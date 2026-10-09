@@ -1,6 +1,6 @@
 import { VALORES_52, createDeck, createRng, type Card, type Palo, type Valor } from '@cartas/core';
 import { describe, expect, it } from 'vitest';
-import { CONFIG_DEFAULT, conquian, createConquian } from './conquian';
+import { CONFIG_DEFAULT, conquian, createConquian, obligadoATomar } from './conquian';
 import type { ConquianState, Fase, Juego } from './types';
 
 const c = (palo: Palo, valor: Valor): Card => ({ id: `${palo}-${valor}`, palo, valor });
@@ -146,6 +146,59 @@ describe('tomar la carta de la mesa', () => {
     expect(() =>
       conquian.apply(base(), { type: 'tomar', player: 1, cardIds: ['bastos-1', 'bastos-2'] }),
     ).toThrow(/turno/);
+  });
+});
+
+describe('carta que entra en un juego propio', () => {
+  const tercia: Juego = {
+    id: 'j1',
+    tipo: 'tercia',
+    cartas: [c('oros', 3), c('espadas', 3), c('bastos', 3)],
+  };
+  const conTercia = (carta: Card, origen: 'mazo' | 'botada' = 'mazo') =>
+    estado({
+      manos: [[c('oros', 5), c('copas', 7)], [c('copas', 1)]],
+      juegos: [[tercia]],
+      fase: { type: 'oferta', carta, origen, de: 1, cola: [0, 1], voltea: 1 },
+    });
+
+  it('si la volteada entra en un juego que ya bajó, está obligado a tomarla', () => {
+    const s = conTercia(c('copas', 3));
+    expect(obligadoATomar(s, 0)).toBe(true);
+    expect(conquian.validActions(s, 0).some((a) => a.type === 'pasar')).toBe(false);
+    expect(() => conquian.apply(s, { type: 'pasar', player: 0 })).toThrow(/tomarla/);
+  });
+
+  it('también si se la botaron', () => {
+    const s = conTercia(c('copas', 3), 'botada');
+    expect(() => conquian.apply(s, { type: 'pasar', player: 0 })).toThrow(/tomarla/);
+    const t = conquian.apply(s, { type: 'tomar', player: 0, cardIds: [], juegoId: 'j1' });
+    expect(t.jugadores[0]?.juegos[0]?.cartas).toHaveLength(4);
+    expect(t.fase).toEqual({ type: 'botar', jugador: 0 });
+  });
+
+  it('si no entra en ningún juego suyo, puede pasar', () => {
+    const s = conTercia(c('copas', 4));
+    expect(obligadoATomar(s, 0)).toBe(false);
+    expect(conquian.validActions(s, 0)).toContainEqual({ type: 'pasar', player: 0 });
+  });
+
+  it('que haga juego nuevo con su mano no lo obliga', () => {
+    const s = estado({
+      manos: [[c('oros', 5), c('espadas', 5)], [c('copas', 1)]],
+      fase: oferta(c('copas', 5), [0, 1]),
+    });
+    expect(obligadoATomar(s, 0)).toBe(false);
+    expect(conquian.validActions(s, 0)).toContainEqual({ type: 'pasar', player: 0 });
+  });
+
+  it('que entre en el juego de otro no lo obliga', () => {
+    const s = estado({
+      manos: [[c('oros', 5)], [c('copas', 1)]],
+      juegos: [[], [tercia]],
+      fase: oferta(c('copas', 3), [0, 1]),
+    });
+    expect(obligadoATomar(s, 0)).toBe(false);
   });
 });
 
@@ -489,6 +542,12 @@ describe('view', () => {
         expect(texto).not.toContain(`"${carta.id}"`);
     }
     for (const carta of s.mazo) expect(texto).not.toContain(`"${carta.id}"`);
+  });
+
+  it('lleva las reglas de la partida, que son públicas', () => {
+    const juego = createConquian({ cartasPorJugador: 9, baraja: { valores: [1, 2, 3, 4, 5] } });
+    const v = juego.view(juego.setup(2, 'reglas'), 0);
+    expect(v.config).toEqual({ cartasPorJugador: 9, baraja: { valores: [1, 2, 3, 4, 5] } });
   });
 
   it('en el intercambio no revela qué carta eligieron los demás', () => {

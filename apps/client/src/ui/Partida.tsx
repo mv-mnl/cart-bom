@@ -1,6 +1,6 @@
-import { conquian } from '@cartas/conquian';
 import type { ReactNode } from 'react';
 import { usePartida } from '../store';
+import { resultado } from '../vista';
 import { Mesa } from '../table/Mesa';
 import { BotonSonido } from './BotonSonido';
 import { Controles } from './Controles';
@@ -11,7 +11,7 @@ import { PantallaFinal } from './PantallaFinal';
 export function Partida({ onMenu, children }: { onMenu: () => void; children?: ReactNode }) {
   // Mientras se ve la pantalla final, los controles de jugada se ocultan (sin mover la mesa).
   const conFinal = usePartida(
-    (s) => s.state !== null && conquian.result(s.state) !== null && !s.verMesa,
+    (s) => s.vista !== null && resultado(s.vista.view) !== null && !s.verMesa,
   );
   return (
     <div className={conFinal ? 'partida con-final' : 'partida'}>

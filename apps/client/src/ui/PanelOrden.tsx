@@ -1,4 +1,5 @@
-import { usePartida, HUMANO } from '../store';
+import { usePartida } from '../store';
+import { bajadasDe } from '../vista';
 import type { OrdenMano } from './orden';
 
 const BOTONES: readonly [OrdenMano, string][] = [
@@ -11,10 +12,8 @@ export function PanelOrden() {
   const ordenMano = usePartida((s) => s.ordenMano);
   const ordenarMano = usePartida((s) => s.ordenarMano);
   // Cartas bajadas en la mesa contra las que hacen falta para ganar (9 + la 10 de la mesa).
-  const bajadas = usePartida(
-    (s) => s.state?.jugadores[HUMANO]?.juegos.reduce((n, j) => n + j.cartas.length, 0) ?? 0,
-  );
-  const meta = usePartida((s) => (s.state?.config.cartasPorJugador ?? 9) + 1);
+  const bajadas = usePartida((s) => (s.vista ? bajadasDe(s.vista.view, s.vista.view.yo) : 0));
+  const meta = usePartida((s) => (s.vista?.view.config.cartasPorJugador ?? 9) + 1);
 
   return (
     <section className="panel-orden" aria-label="Ordenar mano">

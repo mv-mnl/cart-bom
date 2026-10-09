@@ -19,7 +19,7 @@ function useHash(): string {
 }
 
 export function App() {
-  const enPartida = usePartida((s) => s.state !== null);
+  const enPartida = usePartida((s) => s.vista !== null);
   const salir = usePartida((s) => s.salir);
   const hash = useHash();
   if (Laboratorio && hash === '#lab') {
