@@ -53,6 +53,9 @@ const pasadaDe = (origen: Origen | undefined): number | null =>
     ? origen.desde.pasada
     : null;
 const esPasada = (origen: Origen | undefined) => pasadaDe(origen) !== null;
+/** La carta sale del asiento de un jugador (la jugó de su mano). */
+const deUnAsiento = (origen: Origen) =>
+  typeof origen.desde === 'object' && 'jugador' in origen.desde;
 
 /**
  * Quiénes tenían su carta esperando en la escena anterior (por mesa: la clave es su
@@ -154,8 +157,9 @@ export function animarEscena(ctx: ContextoAnimacion): void {
       const velocidad = c.velocidad ?? (reparto ? VELOCIDAD_REPARTO : 1);
       if (reparto && dorso) {
         repartirCarta(sprite, destino, tuya, dorso, { retraso, zIndexFinal, velocidad });
-      } else if (c.origen.voltear && cara && dorso) {
-        voltearCarta(sprite, destino, cara, dorso, { retraso, zIndexFinal, velocidad });
+      } else if ((c.origen.voltear || deUnAsiento(c.origen)) && tuya && dorso) {
+        // Lo que sale del mazo o de la mano de un rival cruza boca abajo y se voltea al llegar.
+        voltearCarta(sprite, destino, tuya, dorso, { retraso, zIndexFinal, velocidad });
       } else {
         moverCarta(sprite, destino, { retraso, zIndexFinal, velocidad });
       }

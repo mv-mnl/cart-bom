@@ -45,6 +45,27 @@ describe('voltearCarta', () => {
   });
 });
 
+describe('moverCarta', () => {
+  it('al cruzar la mesa vuela y aterriza exactamente en su lugar', () => {
+    const s = spriteFalso();
+    const tl = moverCarta(s, { x: 400, y: 300, rotation: 0.3, escala: 0.7 });
+    tl.progress(0.3);
+    // A medio camino va levantada (más grande que al salir y que al llegar).
+    expect(s.scale.x).toBeGreaterThan(1);
+    tl.progress(1);
+    expect([s.x, s.y, s.rotation, s.scale.x, s.scale.y]).toEqual([400, 300, 0.3, 0.7, 0.7]);
+  });
+
+  it('un movimiento corto solo se acomoda, sin levantarse', () => {
+    const s = spriteFalso();
+    const tl = moverCarta(s, { x: 20, y: 0, rotation: 0, escala: 1 });
+    tl.progress(0.5);
+    expect(s.scale.x).toBe(1);
+    tl.progress(1);
+    expect(s.x).toBe(20);
+  });
+});
+
 describe('velocidad', () => {
   it('a 0.5 la animación y su retraso duran el doble', () => {
     const s = spriteFalso();
@@ -110,16 +131,16 @@ describe('llevarA', () => {
     olvidarCarta(s);
   });
 
-  it('no corta un volteo: lo termina y después va al nuevo lugar', () => {
+  it('no corta un volteo: como en el reparto, sigue hacia el nuevo lugar y se voltea al llegar', () => {
     const s = spriteFalso();
     const tl = voltearCarta(s, destino, cara, dorso);
     const nuevo = { ...destino, x: 500 };
     llevarA(s, nuevo);
     expect(s.texture).toBe(dorso);
-    expect(vaHacia(s, destino)).toBe(true);
+    expect(vaHacia(s, nuevo)).toBe(true);
     tl.progress(1);
     expect(s.texture).toBe(cara);
-    expect(vaHacia(s, nuevo)).toBe(true);
+    expect([s.x, s.y]).toEqual([500, 200]);
     olvidarCarta(s);
   });
 

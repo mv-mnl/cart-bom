@@ -158,7 +158,16 @@ export function colocarCarta(sprite: Sprite, pose: Pose): void {
   sprite.scale.set(pose.escala);
 }
 
-/** Lleva una carta de donde esté a su nuevo lugar. */
+/** Por debajo de esta distancia (px) la carta solo se acomoda, sin vuelo (por ejemplo, al ordenar la mano). */
+const DISTANCIA_VUELO = 60;
+/** Balanceo de una carta que vuela de un lugar a otro (radianes, en el sentido del viaje). */
+const BALANCEO = 0.22;
+
+/**
+ * Lleva una carta de donde esté a su nuevo lugar. Si cruza la mesa (botar, bajar, pasar)
+ * vuela como en el reparto: en curva, levantándose y con un balanceo; al aterrizar se asienta.
+ * Si apenas se mueve, se acomoda directo.
+ */
 export function moverCarta(
   sprite: Sprite,
   destino: Pose,
@@ -166,17 +175,41 @@ export function moverCarta(
 ): gsap.core.Timeline {
   detener(sprite);
   if (opciones.textura) sprite.texture = opciones.textura;
-  const d = duracion(sprite, destino);
-  return timelineSobre(sprite, destino, opciones)
-    .to(
-      sprite,
-      { x: destino.x, y: destino.y, rotation: destino.rotation, duration: d, ease: 'power2.out' },
-      0,
-    )
-    .to(sprite.scale, { x: destino.escala, y: destino.escala, duration: d, ease: 'power2.out' }, 0);
+  const tl = timelineSobre(sprite, destino, opciones);
+  const distancia = Math.hypot(destino.x - sprite.x, destino.y - sprite.y);
+  if (movimientoReducido() || distancia < DISTANCIA_VUELO) {
+    const d = duracion(sprite, destino);
+    return tl
+      .to(
+        sprite,
+        { x: destino.x, y: destino.y, rotation: destino.rotation, duration: d, ease: 'power2.out' },
+        0,
+      )
+      .to(
+        sprite.scale,
+        { x: destino.escala, y: destino.escala, duration: d, ease: 'power2.out' },
+        0,
+      );
+  }
+  const viaje = duracionVuelo(distancia, 0.3);
+  trazarVuelo(
+    tl,
+    sprite,
+    { ...destino },
+    { x: sprite.x, y: sprite.y, escala: sprite.scale.x },
+    0,
+    viaje,
+    {
+      balanceo: BALANCEO,
+    },
+  );
+  return asentar(tl, sprite, destino, viaje);
 }
 
-/** La carta viaja boca abajo y se voltea a la mitad del camino. */
+/**
+ * La carta del mazo: cruza boca abajo como en el reparto y, al llegar, se voltea con un
+ * saltito para que se vea qué salió.
+ */
 export function voltearCarta(
   sprite: Sprite,
   destino: Pose,
@@ -184,34 +217,7 @@ export function voltearCarta(
   dorso: Texture,
   opciones: OpcionesMovimiento = {},
 ): gsap.core.Timeline {
-  detener(sprite);
-  if (movimientoReducido()) {
-    sprite.texture = cara;
-    colocarCarta(sprite, destino);
-    return gsap.timeline();
-  }
-  const d = Math.max(0.36, duracion(sprite, destino));
-  sprite.texture = dorso;
-  carasPendientes.set(sprite, cara);
-  const tl = timelineSobre(sprite, destino, opciones);
-  protegidas.add(tl);
-  return tl
-    .to(
-      sprite,
-      { x: destino.x, y: destino.y, rotation: destino.rotation, duration: d, ease: 'power2.out' },
-      0,
-    )
-    .to(sprite.scale, { y: destino.escala, duration: d, ease: 'power2.out' }, 0)
-    .to(sprite.scale, { x: 0, duration: d / 2, ease: 'power1.in' }, 0)
-    .call(
-      () => {
-        sprite.texture = cara;
-        carasPendientes.delete(sprite);
-      },
-      undefined,
-      d / 2,
-    )
-    .to(sprite.scale, { x: destino.escala, duration: d / 2, ease: 'power1.out' }, d / 2);
+  return repartirCarta(sprite, destino, cara, dorso, { ...opciones, giro: false });
 }
 
 /** Qué tanto se curva el viaje del reparto (proporción de la distancia). */
@@ -220,6 +226,114 @@ const CURVA_REPARTO = 0.18;
 const ALZA_REPARTO = 1.18;
 /** Giro extra con el que sale del mazo (radianes). */
 const GIRO_REPARTO = 0.6;
+
+/** Duración del vuelo según la distancia: más lejos, un poco más, sin pasar de medio segundo. */
+function duracionVuelo(distancia: number, minimo: number): number {
+  return Math.min(0.5, Math.max(minimo, distancia / 1400));
+}
+
+/** Qué tanto se levanta una carta según lo lejos que va: los viajes cortos casi no se alzan. */
+function alzaPara(distancia: number): number {
+  return 1 + (ALZA_REPARTO - 1) * Math.min(1, distancia / 350);
+}
+
+/**
+ * El vuelo que comparten todas las animaciones: de `desde` a `obj` en curva, levantándose
+ * a medio camino y girando hasta su rotación final. Lee `obj` en cada cuadro, así el destino
+ * se puede corregir a medio camino.
+ */
+function trazarVuelo(
+  tl: gsap.core.Timeline,
+  sprite: Sprite,
+  obj: Pose,
+  desde: { readonly x: number; readonly y: number; readonly escala: number },
+  t0: number,
+  viaje: number,
+  { giro = 0, balanceo = 0 }: { readonly giro?: number; readonly balanceo?: number },
+): void {
+  const dx = obj.x - desde.x;
+  const dy = obj.y - desde.y;
+  // Punto de control de la curva: a mitad de camino, desviado hacia un lado.
+  const cx = desde.x + dx / 2 - dy * CURVA_REPARTO;
+  const cy = desde.y + dy / 2 + dx * CURVA_REPARTO;
+  const lado = dx >= 0 ? 1 : -1;
+  // Se alza sobre la mayor de las dos escalas: de la mano a la mesa también se nota.
+  const alza = alzaPara(Math.hypot(dx, dy));
+  const arriba = () => Math.max(desde.escala, obj.escala) * alza;
+  const avance = { t: 0 };
+  tl.to(
+    avance,
+    {
+      t: 1,
+      duration: viaje,
+      ease: 'power2.inOut',
+      onUpdate: () => {
+        const t = avance.t;
+        const u = 1 - t;
+        sprite.x = u * u * desde.x + 2 * u * t * cx + t * t * obj.x;
+        sprite.y = u * u * desde.y + 2 * u * t * cy + t * t * obj.y;
+      },
+    },
+    t0,
+  );
+  if (giro) {
+    // El giro empieza cuando sale (no antes): mientras espera, sigue derecha sobre el mazo.
+    tl.fromTo(
+      sprite,
+      { rotation: obj.rotation - giro * lado },
+      { rotation: () => obj.rotation, duration: viaje, ease: 'power2.out', immediateRender: false },
+      t0,
+    );
+  } else if (balanceo) {
+    // Se ladea hacia donde va y se endereza al llegar.
+    tl.to(
+      sprite,
+      { rotation: () => obj.rotation + balanceo * lado, duration: viaje / 2, ease: 'sine.out' },
+      t0,
+    ).to(
+      sprite,
+      { rotation: () => obj.rotation, duration: viaje / 2, ease: 'sine.inOut' },
+      t0 + viaje / 2,
+    );
+  } else {
+    tl.to(sprite, { rotation: () => obj.rotation, duration: viaje, ease: 'power2.out' }, t0);
+  }
+  // Se levanta y vuelve a bajar: da sensación de que cruza la mesa por el aire.
+  tl.to(
+    sprite.scale,
+    {
+      x: arriba,
+      y: arriba,
+      duration: viaje / 2,
+      ease: 'sine.out',
+    },
+    t0,
+  ).to(
+    sprite.scale,
+    { x: () => obj.escala, y: () => obj.escala, duration: viaje / 2, ease: 'sine.in' },
+    t0 + viaje / 2,
+  );
+}
+
+/** Al aterrizar, la carta se aplasta un poquito y rebota a su tamaño. */
+function asentar(
+  tl: gsap.core.Timeline,
+  sprite: Sprite,
+  destino: Pose,
+  llega: number,
+): gsap.core.Timeline {
+  return tl
+    .to(
+      sprite.scale,
+      { x: destino.escala * 0.95, y: destino.escala * 0.95, duration: 0.06, ease: 'power1.out' },
+      llega,
+    )
+    .to(
+      sprite.scale,
+      { x: destino.escala, y: destino.escala, duration: 0.22, ease: 'back.out(3)' },
+      llega + 0.06,
+    );
+}
 
 /** Una parada antes de cruzar la mesa: a dónde va primero y cuánto espera ahí (s). */
 export interface Parada {
@@ -260,13 +374,7 @@ export function repartirCarta(
   const t0 = parada ? parada.tramo + parada.espera : 0;
   const x0 = parada ? parada.pose.x : sprite.x;
   const y0 = parada ? parada.pose.y : sprite.y;
-  const dx = destino.x - x0;
-  const dy = destino.y - y0;
-  // Punto de control de la curva: a mitad de camino, desviado hacia un lado.
-  const cx = x0 + dx / 2 - dy * CURVA_REPARTO;
-  const cy = y0 + dy / 2 + dx * CURVA_REPARTO;
-  const viaje = Math.min(0.5, Math.max(0.4, Math.hypot(dx, dy) / 1400));
-  const lado = dx >= 0 ? 1 : -1;
+  const viaje = duracionVuelo(Math.hypot(destino.x - x0, destino.y - y0), 0.4);
 
   const tl = timelineSobre(sprite, destino, opciones);
   if (parada) {
@@ -277,47 +385,16 @@ export function repartirCarta(
       0,
     ).to(sprite.scale, { x: pose.escala, y: pose.escala, duration: tramo, ease: 'power2.out' }, 0);
   }
-  const avance = { t: 0 };
-  tl.to(
-    avance,
-    {
-      t: 1,
-      duration: viaje,
-      ease: 'power2.inOut',
-      onUpdate: () => {
-        const t = avance.t;
-        const u = 1 - t;
-        sprite.x = u * u * x0 + 2 * u * t * cx + t * t * obj.x;
-        sprite.y = u * u * y0 + 2 * u * t * cy + t * t * obj.y;
-      },
-    },
+  trazarVuelo(
+    tl,
+    sprite,
+    obj,
+    { x: x0, y: y0, escala: parada ? parada.pose.escala : sprite.scale.x },
     t0,
-  );
-  if (giro) {
-    // El giro empieza cuando sale (no antes): mientras espera, sigue derecha sobre el mazo.
-    tl.fromTo(
-      sprite,
-      { rotation: destino.rotation - GIRO_REPARTO * lado },
-      { rotation: () => obj.rotation, duration: viaje, ease: 'power2.out', immediateRender: false },
-      t0,
-    );
-  } else {
-    tl.to(sprite, { rotation: () => obj.rotation, duration: viaje, ease: 'power2.out' }, t0);
-  }
-  // Se levanta y vuelve a bajar: da sensación de que cruza la mesa por el aire.
-  tl.to(
-    sprite.scale,
+    viaje,
     {
-      x: () => obj.escala * ALZA_REPARTO,
-      y: () => obj.escala * ALZA_REPARTO,
-      duration: viaje / 2,
-      ease: 'sine.out',
+      giro: giro ? GIRO_REPARTO : 0,
     },
-    t0,
-  ).to(
-    sprite.scale,
-    { x: () => obj.escala, y: () => obj.escala, duration: viaje / 2, ease: 'sine.in' },
-    t0 + viaje / 2,
   );
 
   protegidas.add(tl);

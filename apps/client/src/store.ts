@@ -23,8 +23,11 @@ import { SIN_SELECCION, type Seleccion } from './ui/opciones';
 import type { OrdenMano } from './ui/orden';
 
 export const HUMANO = 0;
-/** Pausa entre jugadas de la computadora, para que se puedan seguir una por una. */
-const PAUSA_IA_MS = 900;
+/**
+ * Pausa entre jugadas de la computadora, para que se puedan seguir una por una.
+ * La animación más larga (la carta del mazo: vuelo, volteo y asentado) dura hasta ~1.04 s.
+ */
+const PAUSA_IA_MS = 1200;
 /** En el intercambio, entre que un rival elige su carta y el siguiente. */
 const PAUSA_INTERCAMBIO_MS = 600;
 
