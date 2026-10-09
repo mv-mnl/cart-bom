@@ -1,5 +1,6 @@
 import {
   jugadaIA,
+  obligadoATomar,
   type ConquianAction,
   type ConquianState,
   type createConquian,
@@ -23,6 +24,11 @@ export interface Preparado {
   readonly pasos: readonly ConquianAction[];
   /** La semilla de la partida donde se encontró, para poder reproducirla. */
   readonly semilla: string;
+  /**
+   * Las jugadas obligadas se hacen solas, como en una partida (normalmente se apagan para
+   * que no se crucen con los pasos del escenario).
+   */
+  readonly automaticas?: boolean;
 }
 
 export interface Escenario {
@@ -239,6 +245,19 @@ export const ESCENARIOS: readonly Escenario[] = [
     (t) => t.accion.type === 'tomar' && t.accion.juegoId !== undefined,
     Y_PAGA,
   ),
+  {
+    id: 'te-entra',
+    grupo: 'Turno',
+    nombre: 'Te entra: se agrega sola',
+    // Justo cuando te ofrecen una carta que entra en un juego tuyo; la mesa la toma sola.
+    preparar: (juego, jugadores, semilla, yo) => {
+      const p = buscarJugada(juego, jugadores, semilla, (t) => {
+        const f = t.antes.fase;
+        return f.type === 'oferta' && f.cola[0] === yo && obligadoATomar(t.antes, yo);
+      });
+      return p && { ...p, pasos: [], automaticas: true };
+    },
+  },
   jugada(
     'bajar-tu',
     'Turno',

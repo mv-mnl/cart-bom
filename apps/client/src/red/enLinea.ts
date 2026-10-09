@@ -6,12 +6,17 @@ import type { Vista } from '../vista';
 
 type Mensaje = MensajeServidor<ConquianView, ConquianAction>;
 
-/** Dónde está el servidor: `VITE_SERVIDOR`, o el mismo host en el puerto de Colyseus. */
+/**
+ * Dónde está el servidor: `VITE_SERVIDOR` si se configuró; en desarrollo, el mismo host en
+ * el puerto de Colyseus; en producción, `/servidor` en el mismo dominio (Nginx lo pasa al
+ * servidor), así funciona igual con http o https.
+ */
 function urlServidor(): string {
   const configurada: unknown = import.meta.env.VITE_SERVIDOR;
   if (typeof configurada === 'string' && configurada) return configurada;
   const ws = location.protocol === 'https:' ? 'wss' : 'ws';
-  return `${ws}://${location.hostname}:2567`;
+  if (import.meta.env.DEV) return `${ws}://${location.hostname}:2567`;
+  return `${ws}://${location.host}/servidor`;
 }
 
 /** Para volver a la sala si se recarga la página. Dura lo que la pestaña. */

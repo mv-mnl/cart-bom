@@ -1,7 +1,7 @@
 import type { ConquianAction, ConquianView } from '@cartas/conquian';
 import type { MensajeServidor } from '@cartas/shared';
 import { Client, type Room } from '@colyseus/sdk';
-import type { Server } from '@colyseus/core';
+import { matchMaker, type Server } from '@colyseus/core';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 type Mensaje = MensajeServidor<ConquianView, ConquianAction>;
@@ -164,5 +164,34 @@ describe('ConquianRoom', () => {
 
     await ana.room.leave();
     await beto2.room.leave();
+  });
+
+  it('si se corta la red, el cliente reconecta solo y sigue en su asiento', async () => {
+    const ana = await conectar(crear('Ana'));
+    const beto = await conectar(unirse(ana.room.roomId, 'Beto'));
+    // Que intente reconectar de inmediato (por defecto espera a que la sala lleve un rato).
+    beto.room.reconnection.minUptime = 0;
+    await ana.esperar(esSala((s) => s.asientos.length === 2));
+    ana.room.send('empezar', { type: 'empezar', compus: 0 });
+    await beto.esperar(esEstado());
+    const reconecto = new Promise<void>((listo) => beto.room.onReconnect(() => listo()));
+
+    // El servidor pierde el socket de Beto sin despedida, como cuando se va la señal.
+    const room = matchMaker.getLocalRoomById(ana.room.roomId);
+    const cliente = room?.clients.find((c) => c.sessionId === beto.room.sessionId);
+    (cliente?.ref as { terminate?: () => void } | undefined)?.terminate?.();
+
+    await ana.esperar(esSala((s) => s.asientos[1]?.desconectado === true));
+    await reconecto;
+    const vuelta = await ana.esperar(esSala((s) => s.asientos[1]?.desconectado === false));
+    expect(vuelta.asientos[1]).toMatchObject({ nombre: 'Beto', compu: false });
+    // Sigue jugando con la misma sesión: sus jugadas se aceptan.
+    const estado = await beto.esperar(esEstado());
+    const pasar = estado.acciones.find((a) => a.type === 'pasarCarta');
+    beto.room.send('jugar', { type: 'jugar', accion: pasar });
+    expect(await ana.esperar(esEstado((e) => e.jugada?.player === 1))).toBeTruthy();
+
+    await ana.room.leave();
+    await beto.room.leave();
   });
 });

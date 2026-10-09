@@ -1,0 +1,27 @@
+services:
+  server:
+    build:
+      context: .
+      dockerfile: docker/server.Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PORT: 2567
+    ports:
+      - '${PUERTO_SERVIDOR:-2567}:2567'
+    init: true
+    restart: unless-stopped
+
+  client:
+    build:
+      context: .
+      dockerfile: docker/client.Dockerfile
+      args:
+        VITE_SERVIDOR: ${VITE_SERVIDOR:-}
+    ports:
+      - '${PUERTO_CLIENTE:-8080}:80'
+    depends_on:
+      server:
+        condition: service_healthy
+    restart: unless-stopped

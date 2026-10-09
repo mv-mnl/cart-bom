@@ -1,6 +1,7 @@
 import { VALORES_40, VALORES_52 } from '@cartas/core';
 import { createConquian } from '@cartas/conquian';
 import { describe, expect, it } from 'vitest';
+import { vistaDe, jugadaAutomatica } from '../vista';
 import { ESCENARIOS } from './escenarios';
 
 const juegos = {
@@ -19,7 +20,9 @@ describe('escenarios del laboratorio', () => {
           // apply lanza error si alguna jugada no es válida en su momento.
           let s = p.inicio;
           for (const a of p.pasos) s = juego.apply(s, a);
-          if (e.id !== 'repartir') expect(p.pasos.length).toBeGreaterThan(0);
+          // Con las automáticas, la jugada la hace sola la mesa: tiene que haber una.
+          if (p.automaticas) expect(jugadaAutomatica(vistaDe(p.inicio, 0))).not.toBeNull();
+          else if (e.id !== 'repartir') expect(p.pasos.length).toBeGreaterThan(0);
         });
       }
     }

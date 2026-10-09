@@ -128,6 +128,7 @@ export function Laboratorio() {
       detener();
       setAuto(false);
       poner(p.inicio, p.modo);
+      usePartida.setState({ automaticas: p.automaticas ?? false });
       let esperado = p.inicio;
       const total = p.pasos.length;
       setEstado(
@@ -201,6 +202,8 @@ export function Laboratorio() {
   useEffect(() => {
     if (!auto) return;
     detener();
+    // La IA juega también tu asiento: nada se hace solo.
+    usePartida.setState({ automaticas: false });
     setActual(null);
     setEstado('Autojugar');
     let vivo = true;
